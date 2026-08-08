@@ -1,8 +1,25 @@
 from fastapi import FastAPI
 
+from app.core.settings import settings
+from app.core.logger import logger
+from app.routers.health import router as health_router
+from app.routers.energy import router as energy_router
+
 app = FastAPI(
-    title="Helios API",
-    version="0.1.0"
+    title=settings.APP_NAME,
+    version=settings.VERSION
+)
+
+app.include_router(
+    health_router,
+    prefix="/api/v1",
+    tags=["Health"]
+)
+
+app.include_router(
+    energy_router,
+    prefix="/api/v1/energy",
+    tags=["Energy"]
 )
 
 @app.get("/")
@@ -11,10 +28,4 @@ def root():
         "message": "Welcome to Helios ☀️"
     }
 
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy",
-        "project": "Helios",
-        "version": "0.1.0"
-    }
+logger.info("Helios API started")
