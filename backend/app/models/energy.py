@@ -11,4 +11,7 @@ class EnergySnapshot(BaseModel):
     battery_power_kw: float
     grid_import_kw: float
     grid_export_kw: float
-    
+
+
+class EnergySummary(BaseModel):
+    solar_surplus_kw: float
