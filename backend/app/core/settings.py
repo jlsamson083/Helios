@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     MIN_BATTERY_SOC: float = 30.0
     TESLA_CHARGER_VOLTAGE: float = 240.0
     TESLA_MAX_CURRENT: float = 48.0
+    SOLIS_BASE_URL: str = ""
 
 class Config:
         env_file = ".env"
