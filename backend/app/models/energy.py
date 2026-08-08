@@ -16,3 +16,4 @@ class EnergySnapshot(BaseModel):
 class EnergySummary(BaseModel):
     solar_surplus_kw: float
     grid_status: str
+    battery_status: str

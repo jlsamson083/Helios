@@ -21,11 +21,23 @@ def calculate_grid_status(snapshot: EnergySnapshot) -> str:
     return "balanced"
 
 
+def calculate_battery_status(snapshot: EnergySnapshot) -> str:
+    if snapshot.battery_power_kw > 0:
+        return "charging"
+
+    if snapshot.battery_power_kw < 0:
+        return "discharging"
+
+    return "idle"
+
+
 def build_energy_summary(snapshot: EnergySnapshot) -> EnergySummary:
     solar_surplus_kw = calculate_solar_surplus(snapshot)
     grid_status = calculate_grid_status(snapshot)
+    battery_status = calculate_battery_status(snapshot)
 
     return EnergySummary(
         solar_surplus_kw=solar_surplus_kw,
-        grid_status=grid_status
+        grid_status=grid_status,
+        battery_status=battery_status
     )
