@@ -17,3 +17,8 @@ class EnergySummary(BaseModel):
     solar_surplus_kw: float
     grid_status: str
     battery_status: str
+    tesla_available_power_kw: float
+    tesla_charging_allowed: bool
+    tesla_charging_current_a: float
+    
+
