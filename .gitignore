@@ -1,8 +1,16 @@
 .env
+.secrets/
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+node_modules/
+.expo/
+dist/
+
+# Local Expo SDK migration sandboxes; the active app is mobile/.
+mobile-sdk57/
+mobile-sdk57-second/
 
 # Local runtime state; production stores this on a mounted volume.
 backend/data/

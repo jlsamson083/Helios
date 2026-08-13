@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # Sprint 1 must never issue real Tesla vehicle commands.
     TESLA_SIMULATION_ONLY: bool = True
 
+    # Enable this in every internet-facing environment. The key must be kept
+    # outside source control and sent in the X-Helios-Key header.
+    API_AUTH_REQUIRED: bool = False
+    HELIOS_API_KEY: str = ""
+
     MIN_BATTERY_SOC: float = 30.0
 
     SOLIS_BASE_URL: str = ""
@@ -43,6 +48,10 @@ class Settings(BaseSettings):
         if not self.TESLA_SIMULATION_ONLY:
             raise ValueError(
                 "Tesla integration must remain simulation-only"
+            )
+        if self.API_AUTH_REQUIRED and not self.HELIOS_API_KEY:
+            raise ValueError(
+                "HELIOS_API_KEY is required when API_AUTH_REQUIRED is enabled"
             )
         return self
 
