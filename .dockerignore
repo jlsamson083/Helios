@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+backend/data
+backend/*.db
+mobile
+mobile-sdk57
+mobile-sdk57-second
+frontend

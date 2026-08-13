@@ -1,1 +1,12 @@
 .env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime state; production stores this on a mounted volume.
+backend/data/
+backend/*.db
+
+# Local/editor artifacts.
+.DS_Store

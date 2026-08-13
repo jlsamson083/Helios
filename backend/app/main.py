@@ -5,6 +5,8 @@ from app.core.logger import logger
 from app.routers.health import router as health_router
 from app.routers.energy import router as energy_router
 
+from app.core.database import initialize_database
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION
@@ -27,5 +29,7 @@ def root():
     return {
         "message": "Welcome to Helios ☀️"
     }
+
+initialize_database()
 
 logger.info("Helios API started")

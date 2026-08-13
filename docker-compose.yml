@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DEBUG: "false"
+      DATA_DIR: /data
+      TESLA_SIMULATION_ONLY: "true"
+      SOLIS_BASE_URL: ${SOLIS_BASE_URL:-}
+      SOLIS_API_KEY_ID: ${SOLIS_API_KEY_ID:-}
+      SOLIS_API_SECRET: ${SOLIS_API_SECRET:-}
+      SOLIS_INVERTER_SN: ${SOLIS_INVERTER_SN:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - helios-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  helios-data:
