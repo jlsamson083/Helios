@@ -23,6 +23,10 @@ class MeterReconciliation(BaseModel):
     current_meter_reading: float = Field(ge=0)
 
 
+class SavingsBackfill(BaseModel):
+    commissioned_on: date
+
+
 async def _grid_totals():
     data = await solis_service.get_inverter_status(settings.SOLIS_INVERTER_SN)
     grid = data["grid"]["energy"]
@@ -41,6 +45,20 @@ async def _savings_totals():
         float(grid["purchased_total_kwh"] or 0),
         float(grid["sold_total_kwh"] or 0),
     )
+
+
+async def _savings_totals_with_year():
+    data = await solis_service.get_inverter_status(settings.SOLIS_INVERTER_SN)
+    grid = data["grid"]["energy"]
+    home_load = data["energy"]["home_load"]
+    return {
+        "home_total": float(home_load["total_kwh"] or 0),
+        "import_total": float(grid["purchased_total_kwh"] or 0),
+        "export_total": float(grid["sold_total_kwh"] or 0),
+        "home_year": float(home_load["year_kwh"] or 0),
+        "import_year": float(grid["purchased_year_kwh"] or 0),
+        "export_year": float(grid["sold_year_kwh"] or 0),
+    }
 
 
 @router.get("/profile")
@@ -73,6 +91,49 @@ async def activate_savings():
     finally:
         connection.close()
     return {"tracking": True, "started_at": started_at}
+
+
+@router.post("/savings/backfill-solis-year")
+async def backfill_savings_from_solis_year(update: SavingsBackfill):
+    profile = get_billing_profile()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Upload a Meralco bill first")
+    today = datetime.now(ZoneInfo("Asia/Manila")).date()
+    if update.commissioned_on.year != today.year or update.commissioned_on > today:
+        raise HTTPException(
+            status_code=422,
+            detail="Commissioning date must be within the current year",
+        )
+    totals = await _savings_totals_with_year()
+    started_at = datetime.combine(
+        update.commissioned_on,
+        datetime.min.time(),
+        tzinfo=ZoneInfo("Asia/Manila"),
+    ).astimezone(timezone.utc).isoformat()
+    connection = get_connection()
+    try:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO savings_baseline (
+                id, started_at, home_load_total_kwh,
+                grid_import_total_kwh, grid_export_total_kwh
+            ) VALUES (1, ?, ?, ?, ?)
+            """,
+            (
+                started_at,
+                max(totals["home_total"] - totals["home_year"], 0),
+                max(totals["import_total"] - totals["import_year"], 0),
+                max(totals["export_total"] - totals["export_year"], 0),
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return {
+        "tracking": True,
+        "started_at": started_at,
+        "source": "solis_year_counters",
+    }
 
 
 @router.get("/savings")

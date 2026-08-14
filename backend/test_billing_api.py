@@ -164,6 +164,36 @@ class BillingApiTests(unittest.TestCase):
         self.assertTrue(response.json()["tracking"])
         connection.commit.assert_called_once()
 
+    def test_backfill_savings_uses_measured_solis_year(self) -> None:
+        connection = MagicMock()
+        totals = {
+            "home_total": 1273.0,
+            "import_total": 943.77,
+            "export_total": 300.0,
+            "home_year": 273.0,
+            "import_year": 43.77,
+            "export_year": 0.0,
+        }
+        with (
+            self.auth_enabled(),
+            patch("app.routers.billing.get_billing_profile", return_value={"import_rate_php_per_kwh": 15}),
+            patch(
+                "app.routers.billing._savings_totals_with_year",
+                new=AsyncMock(return_value=totals),
+            ),
+            patch("app.routers.billing.get_connection", return_value=connection),
+        ):
+            response = self.client.post(
+                "/api/v1/billing/savings/backfill-solis-year",
+                json={"commissioned_on": "2026-07-30"},
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["source"], "solis_year_counters")
+        values = connection.execute.call_args.args[1]
+        self.assertAlmostEqual(values[1], 1000.0)
+        self.assertAlmostEqual(values[2], 900.0)
+
 
 if __name__ == "__main__":
     unittest.main()
