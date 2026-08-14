@@ -466,26 +466,26 @@ export default function HomeScreen() {
 
             {savings?.tracking && (
               <View style={styles.savingsCard}>
-                <Text style={styles.cardEyebrow}>MEASURED SOLAR SAVINGS</Text>
+                <Text style={styles.cardEyebrow}>ESTIMATED MERALCO ENERGY CHARGES AVOIDED</Text>
                 <Text style={styles.savingsValue}>
                   ₱{(savings.savings_php ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}
                 </Text>
-                <Text style={styles.savingsCaption}>Variable energy savings since activation</Text>
+                <Text style={styles.savingsCaption}>Since your solar system started on July 30</Text>
                 <View style={styles.savingsRow}>
-                  <View>
-                    <Text style={styles.savingsLabel}>WITHOUT SOLAR</Text>
+                  <View style={styles.savingsMetricColumn}>
+                    <Text style={styles.savingsLabel}>IF ALL HOME ENERGY CAME FROM MERALCO</Text>
                     <Text style={styles.savingsMetric}>₱{(savings.without_solar_php ?? 0).toFixed(0)}</Text>
                   </View>
-                  <View>
-                    <Text style={styles.savingsLabel}>GRID COST</Text>
+                  <View style={styles.savingsMetricColumn}>
+                    <Text style={styles.savingsLabel}>ELECTRICITY IMPORTED FROM MERALCO</Text>
                     <Text style={styles.savingsMetric}>₱{(savings.measured_grid_cost_php ?? 0).toFixed(0)}</Text>
                   </View>
-                  <View>
-                    <Text style={styles.savingsLabel}>SOLAR COVERED</Text>
+                  <View style={styles.savingsMetricColumn}>
+                    <Text style={styles.savingsLabel}>HOME ENERGY SUPPLIED WITHOUT THE GRID</Text>
                     <Text style={styles.savingsMetric}>{(savings.solar_covered_percent ?? 0).toFixed(0)}%</Text>
                   </View>
                 </View>
-                <Text style={styles.gridEnergySource}>Uses live Solis totals and your uploaded Meralco rates · excludes fixed charges</Text>
+                <Text style={styles.gridEnergySource}>Energy charges only · fixed fees and unconfirmed export credits are excluded</Text>
               </View>
             )}
 
@@ -1558,7 +1558,8 @@ const styles =
     savingsCard: { backgroundColor: '#102A25', borderColor: '#236B5B', borderWidth: 1, borderRadius: 22, padding: 19, marginTop: 14 },
     savingsValue: { color: '#5EE0B7', fontSize: 34, fontWeight: '900', marginTop: 10 },
     savingsCaption: { color: '#93A7A0', fontSize: 11, marginTop: 2 },
-    savingsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginVertical: 18 },
+    savingsRow: { gap: 10, marginVertical: 18 },
+    savingsMetricColumn: { backgroundColor: '#13362F', borderRadius: 13, padding: 12 },
     savingsLabel: { color: '#718D84', fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
     savingsMetric: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 4 },
 
