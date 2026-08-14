@@ -470,7 +470,15 @@ export default function HomeScreen() {
                 <Text style={styles.savingsValue}>
                   ₱{(savings.savings_php ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}
                 </Text>
-                <Text style={styles.savingsCaption}>Since your solar system started on July 30</Text>
+                <Text style={styles.savingsCaption}>
+                  Tracking period: {savings.started_at
+                    ? new Date(savings.started_at).toLocaleDateString('en-PH', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                    : 'activation date'} to today
+                </Text>
                 <View style={styles.savingsRow}>
                   <View style={styles.savingsMetricColumn}>
                     <Text style={styles.savingsLabel}>IF ALL HOME ENERGY CAME FROM MERALCO</Text>
