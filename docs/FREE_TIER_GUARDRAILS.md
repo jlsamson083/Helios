@@ -62,3 +62,6 @@ Current recovery protection:
 - Encrypted off-VM recovery archive: `.secrets/backups/helios-recovery-2026-08-14.tar.gz.enc`
 - Local recovery key: `.secrets/backup.key` (copy this separately to a password
   manager or offline drive; never commit it)
+- Private Object Storage bucket: `helios-backups`; the VM keeps only the newest
+  30 encrypted daily objects. Do not enable object versioning or remove the
+  retention limit.

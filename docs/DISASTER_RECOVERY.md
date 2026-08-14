@@ -11,6 +11,8 @@ traffic and no paid resources.
   `.secrets/backups/helios-recovery-2026-08-14.tar.gz.enc`
 - Encryption key: `.secrets/backup.key`
 - Automatic encrypted Mac backups: `.secrets/backups/helios-automatic-*.tar.gz.enc`
+- Automatic encrypted OCI Object Storage backups: private bucket
+  `helios-backups`, prefix `daily/`
 
 The encrypted archive contains the persistent SQLite data, production
 environment file, Caddy configuration, and systemd service definitions. Source
@@ -19,11 +21,17 @@ code remains in Git.
 Keep the archive and key in separate places. Copy the key to a password manager
 or offline drive. Both `.secrets/` paths are ignored by Git.
 
-The Mac runs `scripts/backup-production.sh` daily at 6:00 PM through launchd.
-It uses SQLite's online backup API, streams production configuration over SSH,
-encrypts locally with the existing key, and verifies that the resulting archive
-can be decrypted and listed. If the Mac is off and does not run the job, launch
-the script manually when it is next available. No paid cloud storage is used.
+The production VM runs `scripts/backup-production-cloud.sh` daily at 6:00 PM
+Asia/Manila through `helios-cloud-backup.timer`. It uses SQLite's online backup
+API, verifies each encrypted archive, uploads it with the VM's instance
+principal, and retains the newest 30 cloud backups. `Persistent=true` makes a
+missed run execute after a VM restart. The Mac launchd backup remains an
+optional second copy and is no longer required for daily protection.
+
+To recover without the original Mac, open **Storage → Object Storage & Archive
+Storage → Buckets → helios-backups → Objects → daily**, download the newest
+archive, and retrieve the separately stored encryption key from the password
+manager. Never store the only copy of that key on the VM or in the bucket.
 
 ## Restore the OCI boot volume
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Helios encrypted OCI Object Storage backup
+After=network-online.target helios.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/helios-cloud-backup
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

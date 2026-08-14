@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Helios cloud backup every day
+
+[Timer]
+OnCalendar=*-*-* 18:00:00 Asia/Manila
+Persistent=true
+RandomizedDelaySec=5m
+Unit=helios-cloud-backup.service
+
+[Install]
+WantedBy=timers.target
