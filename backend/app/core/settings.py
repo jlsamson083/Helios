@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # stored in Helios. Enable only after the dynamic group and IAM policy exist.
     OCI_COST_MONITOR_ENABLED: bool = False
     OCI_REGION: str = "ap-singapore-1"
-    OCI_BUDGET_NAME: str = "Helios Zero Cost"
+    OCI_BUDGET_NAME: str = "Helios-Zero-Cost"
     OCI_COST_ALERT_THRESHOLD_USD: float = 0.0
 
     @property

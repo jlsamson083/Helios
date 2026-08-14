@@ -32,16 +32,17 @@ Helios is deliberately sized to remain within Oracle Cloud Always Free limits.
 
 The Settings screen can show OCI's current-month actual and forecast spend.
 Helios labels the result **Verified Zero** only after OCI returns an actual
-spend of `USD 0.00`. Any positive actual spend creates a critical alert and a
-Web Push notification for every subscribed device. A failed or stale check is
-shown as unavailable, never as zero.
+spend of `USD 0.00`. The first positive actual spend in each calendar month
+creates one critical alert and one Web Push notification for every subscribed
+device. Repeated six-hour checks remain silent. A failed or stale check is shown
+as unavailable, never as zero.
 
 This uses an OCI Budget and the compute VM's instance principal, so no OCI API
 private key is copied into Helios:
 
-1. Create a root-compartment monthly budget named `Helios Zero Cost`.
+1. Create a root-compartment monthly budget named `Helios-Zero-Cost`.
 2. Create a dynamic group whose matching rule selects only the Helios instance.
-3. Add the policy `Allow dynamic-group HeliosCostMonitor to read budgets in tenancy`.
+3. Add the policy `Allow dynamic-group HeliosCostMonitor to read usage-budgets in tenancy`.
 4. Set `OCI_COST_MONITOR_ENABLED=true` in `/opt/helios/.env` and restart Helios.
 
 Helios checks at startup, every six hours, and whenever **Check Oracle now** is

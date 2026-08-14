@@ -107,15 +107,18 @@ async def refresh_cost_status() -> dict:
         payload = await asyncio.to_thread(_read_oci_budget)
         _save_status(payload)
         if payload["status"] == "billing":
+            # The billing month is part of the event identity. Repeated polling
+            # stays silent; a new month can trigger one new alert.
+            billing_month = datetime.now(timezone.utc).strftime("%Y-%m")
             create_alert(
-                kind="cloud_cost",
+                kind=f"cloud_cost_{billing_month}",
                 severity="critical",
                 title="Oracle Cloud is no longer at zero cost",
                 message=(
                     f'OCI reports {payload["currency"]} '
                     f'{payload["actual_spend"]:.2f} of actual spend this month.'
                 ),
-                cooldown_minutes=24 * 60,
+                cooldown_minutes=62 * 24 * 60,
             )
         return payload
     except Exception as exc:
