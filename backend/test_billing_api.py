@@ -74,6 +74,15 @@ class BillingApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 415)
 
+    def test_manual_gmail_refresh_is_not_exposed(self) -> None:
+        with self.auth_enabled():
+            response = self.client.post(
+                "/api/v1/billing/email-import/refresh",
+                headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_current_cycle_combines_confirmed_and_solis_delta(self) -> None:
         profile = {
             "period_end": "2026-07-28",

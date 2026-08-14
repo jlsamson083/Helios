@@ -18,7 +18,6 @@ from app.services.billing_trend import calculate_daily_grid_deltas
 from app.services.meralco_email import (
     email_bill_history,
     gmail_import_status,
-    sync_meralco_email_async,
 )
 
 router = APIRouter()
@@ -134,11 +133,6 @@ def email_import_status():
 @router.get("/email-import/history")
 def email_import_history():
     return {"bills": email_bill_history()}
-
-
-@router.post("/email-import/refresh")
-async def refresh_email_import():
-    return await sync_meralco_email_async()
 
 
 @router.post("/savings/activate")

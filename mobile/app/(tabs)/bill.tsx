@@ -104,30 +104,18 @@ export default function BillScreen() {
   const [error, setError] = useState<string | null>(null);
   const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
   const [gmailImport, setGmailImport] = useState<GmailImportStatus | null>(null);
-  const [checkingGmail, setCheckingGmail] = useState(false);
 
-  const loadGmailImport = useCallback(async (refresh = false) => {
+  const loadGmailImport = useCallback(async () => {
     try {
-      setCheckingGmail(refresh);
       const base = HELIOS_API_BASE.replace('/energy', '');
-      const response = await fetch(
-        `${base}/billing/email-import/${refresh ? 'refresh' : 'status'}`,
-        { method: refresh ? 'POST' : 'GET', headers: HELIOS_API_HEADERS },
-      );
+      const response = await fetch(`${base}/billing/email-import/status`, {
+        headers: HELIOS_API_HEADERS,
+      });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? 'Unable to check Gmail');
-      if (refresh) {
-        const statusResponse = await fetch(`${base}/billing/email-import/status`, {
-          headers: HELIOS_API_HEADERS,
-        });
-        setGmailImport(await statusResponse.json());
-      } else {
-        setGmailImport(result);
-      }
+      setGmailImport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to check Gmail');
-    } finally {
-      setCheckingGmail(false);
     }
   }, []);
 
@@ -189,7 +177,7 @@ export default function BillScreen() {
   }, [loadGridImport]);
 
   useEffect(() => {
-    loadGmailImport(false);
+    loadGmailImport();
   }, [loadGmailImport]);
 
   useEffect(() => {
@@ -425,19 +413,12 @@ export default function BillScreen() {
             Latest: {gmailImport.latest_bill.billing_period} · {gmailImport.latest_bill.consumption_kwh.toFixed(0)} kWh · {peso.format(gmailImport.latest_bill.amount_due_php)}
           </Text>
         ) : (
-          <Text style={styles.hint}>Check Gmail to import the forwarded Meralco bill history.</Text>
+          <Text style={styles.hint}>Helios will import forwarded Meralco bills automatically.</Text>
         )}
+        <Text style={styles.gmailSchedule}>Gmail is checked automatically every 6 hours.</Text>
         <Text style={styles.hint}>
           Email summaries are stored as official history. Detailed meter readings, rates, and net-metering credits still require the bill PDF because Meralco does not include them in the email.
         </Text>
-        <Pressable
-          style={styles.gmailButton}
-          disabled={checkingGmail}
-          onPress={() => loadGmailImport(true)}>
-          <Text style={styles.gmailButtonText}>
-            {checkingGmail ? 'Checking Gmail…' : 'Check Gmail now'}
-          </Text>
-        </Pressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -682,8 +663,7 @@ const styles = StyleSheet.create({
   qualityDelayed: { color: '#FFD37A', backgroundColor: '#352A12' },
   qualityStale: { color: '#FF9A9A', backgroundColor: '#35191D' },
   gmailCard: { backgroundColor: '#0D1820', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27414F', gap: 9 },
-  gmailButton: { alignItems: 'center', backgroundColor: '#274B5D', padding: 11, borderRadius: 10, marginTop: 2 },
-  gmailButtonText: { color: '#EAF5FA', fontWeight: '700' },
+  gmailSchedule: { color: '#8FDDBA', fontSize: 12, fontWeight: '600' },
   heroCard: { backgroundColor: '#0D1820', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#20303A' },
   eyebrow: { color: '#FDB813', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   heroValue: { color: '#F5F7F8', fontSize: 42, fontWeight: '800', marginTop: 8 },
