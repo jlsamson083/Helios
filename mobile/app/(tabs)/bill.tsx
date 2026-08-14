@@ -46,16 +46,6 @@ type BillingProfile = {
   carried_credit_php: number | null;
 };
 
-type BillingTrend = {
-  days: { date: string; import_kwh: number; export_kwh: number }[];
-  sample_days: number;
-  confidence: 'low' | 'medium' | 'high';
-  average_daily_import_kwh: number;
-  average_daily_export_kwh: number;
-  projected_cycle_import_kwh: number;
-  projected_cycle_export_kwh: number;
-};
-
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -91,7 +81,6 @@ export default function BillScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [trend, setTrend] = useState<BillingTrend | null>(null);
 
   const loadGridImport = useCallback(async (useSolisImport = true) => {
     try {
@@ -113,11 +102,6 @@ export default function BillScreen() {
         setConfirmedImport(data.confirmed_grid_import_kwh);
         setEstimatedImport(data.estimated_grid_import_kwh);
         setImportSource('solis');
-        const trendResponse = await fetch(
-          `${HELIOS_API_BASE.replace('/energy', '')}/billing/daily-grid`,
-          { headers: HELIOS_API_HEADERS },
-        );
-        if (trendResponse.ok) setTrend(await trendResponse.json());
         return;
       }
       const response = await fetch(
@@ -366,38 +350,6 @@ export default function BillScreen() {
         </View>
       </View>
 
-      {trend && (
-        <View style={styles.card}>
-          <View style={styles.trendHeader}>
-            <View>
-              <Text style={styles.cardTitle}>Daily grid trend</Text>
-              <Text style={styles.hint}>Measured from Solis lifetime-counter changes</Text>
-            </View>
-            <View style={[styles.confidenceBadge, styles[`confidence_${trend.confidence}`]]}>
-              <Text style={styles.confidenceText}>{trend.confidence.toUpperCase()} CONFIDENCE</Text>
-            </View>
-          </View>
-          <DailyGridBars days={trend.days.slice(-10)} />
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}><View style={[styles.legendDot, styles.importDot]} /><Text style={styles.hint}>Import</Text></View>
-            <View style={styles.legendItem}><View style={[styles.legendDot, styles.exportDot]} /><Text style={styles.hint}>Export</Text></View>
-          </View>
-          <View style={styles.row}>
-            <Metric label="Daily import average" value={`${trend.average_daily_import_kwh.toFixed(1)} kWh`} />
-            <Metric label="Daily export average" value={`${trend.average_daily_export_kwh.toFixed(1)} kWh`} />
-          </View>
-          <View style={styles.trendProjection}>
-            <Text style={styles.fieldLabel}>TREND-BASED CYCLE OUTLOOK</Text>
-            <Text style={styles.body}>
-              {trend.projected_cycle_import_kwh.toFixed(0)} kWh import · {trend.projected_cycle_export_kwh.toFixed(0)} kWh export
-            </Text>
-            <Text style={styles.hint}>
-              Confidence improves after 3 measured days and becomes high after 7.
-            </Text>
-          </View>
-        </View>
-      )}
-
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Billing inputs</Text>
         <View style={styles.sourceBadge}>
@@ -588,26 +540,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DailyGridBars({ days }: { days: BillingTrend['days'] }) {
-  if (days.length === 0) {
-    return <Text style={styles.disclaimer}>Waiting for the first Solis counter change.</Text>;
-  }
-  const maximum = Math.max(...days.flatMap(day => [day.import_kwh, day.export_kwh]), 0.1);
-  return (
-    <View style={styles.chart}>
-      {days.map(day => (
-        <View key={day.date} style={styles.dayColumn}>
-          <View style={styles.barArea}>
-            <View style={[styles.bar, styles.importBar, { height: Math.max((day.import_kwh / maximum) * 82, day.import_kwh ? 3 : 0) }]} />
-            <View style={[styles.bar, styles.exportBar, { height: Math.max((day.export_kwh / maximum) * 82, day.export_kwh ? 3 : 0) }]} />
-          </View>
-          <Text style={styles.dayLabel}>{new Date(`${day.date}T00:00:00`).toLocaleDateString('en-PH', { day: 'numeric' })}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#071117' },
   content: { padding: 20, paddingTop: 64, paddingBottom: 40, gap: 16 },
@@ -664,23 +596,4 @@ const styles = StyleSheet.create({
   refreshButton: { alignItems: 'center', padding: 14, borderRadius: 14, backgroundColor: '#FDB813' },
   refreshText: { color: '#142028', fontWeight: '800' },
   autoRefreshText: { color: '#657985', fontSize: 11, textAlign: 'center', marginTop: -8 },
-  trendHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
-  confidenceBadge: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8 },
-  confidence_low: { backgroundColor: '#352B1A' },
-  confidence_medium: { backgroundColor: '#173044' },
-  confidence_high: { backgroundColor: '#123324' },
-  confidenceText: { color: '#D7E0E4', fontSize: 9, fontWeight: '800' },
-  chart: { height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 5, paddingTop: 8 },
-  dayColumn: { flex: 1, alignItems: 'center' },
-  barArea: { height: 86, flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-  bar: { width: 5, borderRadius: 3 },
-  importBar: { backgroundColor: '#E98C68' },
-  exportBar: { backgroundColor: '#52D39A' },
-  dayLabel: { color: '#657985', fontSize: 9, marginTop: 5 },
-  legendRow: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot: { width: 7, height: 7, borderRadius: 4 },
-  importDot: { backgroundColor: '#E98C68' },
-  exportDot: { backgroundColor: '#52D39A' },
-  trendProjection: { backgroundColor: '#0A141A', borderRadius: 13, padding: 13, gap: 5 },
 });

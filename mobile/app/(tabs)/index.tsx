@@ -32,11 +32,18 @@ type HeliosStatus = {
   };
 };
 
+type GridEnergySummary = {
+  today: { grid_import_kwh: number; grid_export_kwh: number };
+  month: { grid_import_kwh: number; grid_export_kwh: number };
+};
+
 const API_BASE = HELIOS_API_BASE;
 
 export default function HomeScreen() {
   const [status, setStatus] =
     useState<HeliosStatus | null>(null);
+  const [gridEnergy, setGridEnergy] =
+    useState<GridEnergySummary | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -51,20 +58,25 @@ export default function HomeScreen() {
       setError(null);
       assertHeliosConfigured();
 
-      const statusResponse = await fetch(`${API_BASE}/status`, {
-        headers: HELIOS_API_HEADERS,
-      });
+      const [statusResponse, historyResponse] = await Promise.all([
+        fetch(`${API_BASE}/status`, { headers: HELIOS_API_HEADERS }),
+        fetch(`${API_BASE}/history/summary`, { headers: HELIOS_API_HEADERS }),
+      ]);
 
       if (!statusResponse.ok) {
         throw new Error(
           `Status API returned ${statusResponse.status}`,
         );
       }
+      if (!historyResponse.ok) {
+        throw new Error(`Grid energy API returned ${historyResponse.status}`);
+      }
 
       const statusData: HeliosStatus =
         await statusResponse.json();
 
       setStatus(statusData);
+      setGridEnergy(await historyResponse.json());
     } catch (err) {
       setError(
         err instanceof Error
@@ -417,6 +429,28 @@ export default function HomeScreen() {
                 {summary.grid_status.toUpperCase()}
               </Text>
             </View>
+
+            {gridEnergy && (
+              <View style={styles.gridEnergyCard}>
+                <Text style={styles.cardEyebrow}>GRID ENERGY</Text>
+                <View style={styles.gridEnergyPeriod}>
+                  <Text style={styles.gridEnergyPeriodTitle}>TODAY</Text>
+                  <View style={styles.gridEnergyValues}>
+                    <GridEnergyMetric label="Imported" value={gridEnergy.today.grid_import_kwh} tone="import" />
+                    <GridEnergyMetric label="Exported" value={gridEnergy.today.grid_export_kwh} tone="export" />
+                  </View>
+                </View>
+                <View style={styles.gridEnergyDivider} />
+                <View style={styles.gridEnergyPeriod}>
+                  <Text style={styles.gridEnergyPeriodTitle}>THIS MONTH</Text>
+                  <View style={styles.gridEnergyValues}>
+                    <GridEnergyMetric label="Imported" value={gridEnergy.month.grid_import_kwh} tone="import" />
+                    <GridEnergyMetric label="Exported" value={gridEnergy.month.grid_export_kwh} tone="export" />
+                  </View>
+                </View>
+                <Text style={styles.gridEnergySource}>Read directly from Solis cumulative counters</Text>
+              </View>
+            )}
 
             <Text
               style={styles.updated}
@@ -789,6 +823,21 @@ function MetricCard({
           {unit}
         </Text>
       </View>
+    </View>
+  );
+}
+
+function GridEnergyMetric({ label, value, tone }: {
+  label: string;
+  value: number;
+  tone: 'import' | 'export';
+}) {
+  return (
+    <View style={styles.gridEnergyMetric}>
+      <Text style={styles.gridEnergyLabel}>{label}</Text>
+      <Text style={[styles.gridEnergyValue, tone === 'import' ? styles.gridImportValue : styles.gridExportValue]}>
+        {value.toFixed(1)} kWh
+      </Text>
     </View>
   );
 }
@@ -1449,6 +1498,25 @@ const styles =
       fontWeight: '800',
       letterSpacing: 0.8,
     },
+
+    gridEnergyCard: {
+      backgroundColor: '#0D1820',
+      borderRadius: 22,
+      padding: 19,
+      marginTop: 14,
+      gap: 12,
+    },
+
+    gridEnergyPeriod: { gap: 8 },
+    gridEnergyPeriodTitle: { color: '#657985', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    gridEnergyValues: { flexDirection: 'row', gap: 12 },
+    gridEnergyMetric: { flex: 1, backgroundColor: '#101E26', borderRadius: 13, padding: 13 },
+    gridEnergyLabel: { color: '#8A9AA3', fontSize: 11 },
+    gridEnergyValue: { fontSize: 20, fontWeight: '900', marginTop: 5 },
+    gridImportValue: { color: '#E98C68' },
+    gridExportValue: { color: '#52D39A' },
+    gridEnergyDivider: { height: 1, backgroundColor: '#20303A' },
+    gridEnergySource: { color: '#657985', fontSize: 10, textAlign: 'center' },
 
     updated: {
       color: '#55656F',
