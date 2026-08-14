@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -54,24 +53,24 @@ type DataQuality = {
   sampleDays: number;
 };
 
-type GmailImportStatus = {
-  status: 'connected' | 'error' | 'not_checked' | 'not_connected';
-  bills_found: number;
-  last_checked_at?: string;
-  last_error?: string | null;
-  latest_bill?: {
-    billing_period: string;
-    consumption_kwh: number;
-    amount_due_php: number;
-    due_date: string;
-  } | null;
-};
-
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
   maximumFractionDigits: 0,
 });
+
+function formatMeasurementAge(ageMinutes: number) {
+  if (ageMinutes < 60) {
+    const minutes = Math.max(1, Math.round(ageMinutes));
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (ageMinutes < 48 * 60) {
+    const hours = Math.round(ageMinutes / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  }
+  const days = Math.round(ageMinutes / (24 * 60));
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 export default function BillScreen() {
   const [gridImport, setGridImport] = useState(
@@ -100,24 +99,8 @@ export default function BillScreen() {
   const [estimatedImport, setEstimatedImport] = useState(0);
   const [includeOtherCharges, setIncludeOtherCharges] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
-  const [gmailImport, setGmailImport] = useState<GmailImportStatus | null>(null);
-
-  const loadGmailImport = useCallback(async () => {
-    try {
-      const base = HELIOS_API_BASE.replace('/energy', '');
-      const response = await fetch(`${base}/billing/email-import/status`, {
-        headers: HELIOS_API_HEADERS,
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail ?? 'Unable to check Gmail');
-      setGmailImport(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to check Gmail');
-    }
-  }, []);
 
   const loadGridImport = useCallback(async (useSolisImport = true) => {
     try {
@@ -163,7 +146,6 @@ export default function BillScreen() {
       );
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -175,10 +157,6 @@ export default function BillScreen() {
     );
     return () => clearInterval(interval);
   }, [loadGridImport]);
-
-  useEffect(() => {
-    loadGmailImport();
-  }, [loadGmailImport]);
 
   useEffect(() => {
     const loadBillingProfile = async () => {
@@ -330,17 +308,7 @@ export default function BillScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            loadGridImport(true);
-          }}
-          tintColor="#FDB813"
-        />
-      }>
+      contentContainerStyle={styles.content}>
       <Text style={styles.title}>Meralco estimate</Text>
       <Text style={styles.subtitle}>
         Projection calibrated from your last two bills
@@ -367,59 +335,10 @@ export default function BillScreen() {
       )}
 
       {billingProfile && dataQuality && (
-        <View style={styles.qualityCard}>
-          <View style={styles.qualityHeader}>
-            <Text style={styles.qualityTitle}>Projection data quality</Text>
-            <Text style={[
-              styles.qualityBadge,
-              dataQuality.freshness === 'fresh'
-                ? styles.qualityFresh
-                : dataQuality.freshness === 'delayed'
-                  ? styles.qualityDelayed
-                  : styles.qualityStale,
-            ]}>
-              {dataQuality.freshness.toUpperCase()}
-            </Text>
-          </View>
-          <Text style={styles.body}>
-            {dataQuality.confidence.toUpperCase()} confidence · {dataQuality.sampleDays} measured day{dataQuality.sampleDays === 1 ? '' : 's'}
-          </Text>
-          <Text style={styles.hint}>
-            {dataQuality.ageMinutes === null
-              ? 'No Solis measurement has been recorded since the uploaded bill baseline.'
-              : `Latest Solis measurement was ${dataQuality.ageMinutes} minute${dataQuality.ageMinutes === 1 ? '' : 's'} ago.`}
-          </Text>
-          <Text style={styles.hint}>
-            Basis: your latest uploaded bill plus measured Solis import and export only.
-          </Text>
-        </View>
+        <Text style={styles.qualitySummary}>
+          Projection data quality: {dataQuality.freshness.charAt(0).toUpperCase() + dataQuality.freshness.slice(1)} · {dataQuality.ageMinutes === null ? 'no Solis measurement yet' : `last measured ${formatMeasurementAge(dataQuality.ageMinutes)}`}
+        </Text>
       )}
-
-      <View style={styles.gmailCard}>
-        <View style={styles.qualityHeader}>
-          <Text style={styles.qualityTitle}>Meralco Gmail import</Text>
-          <Text style={[
-            styles.qualityBadge,
-            gmailImport?.status === 'connected' ? styles.qualityFresh : styles.qualityDelayed,
-          ]}>
-            {gmailImport?.status === 'connected' ? 'CONNECTED' : 'NOT CHECKED'}
-          </Text>
-        </View>
-        <Text style={styles.body}>
-          {gmailImport?.bills_found ?? 0} official bill email{gmailImport?.bills_found === 1 ? '' : 's'} stored
-        </Text>
-        {gmailImport?.latest_bill ? (
-          <Text style={styles.hint}>
-            Latest: {gmailImport.latest_bill.billing_period} · {gmailImport.latest_bill.consumption_kwh.toFixed(0)} kWh · {peso.format(gmailImport.latest_bill.amount_due_php)}
-          </Text>
-        ) : (
-          <Text style={styles.hint}>Helios will import forwarded Meralco bills automatically.</Text>
-        )}
-        <Text style={styles.gmailSchedule}>Gmail is checked automatically every 6 hours.</Text>
-        <Text style={styles.hint}>
-          Email summaries are stored as official history. Detailed meter readings, rates, and net-metering credits still require the bill PDF because Meralco does not include them in the email.
-        </Text>
-      </View>
 
       <View style={styles.heroCard}>
         <Text style={styles.eyebrow}>PROJECTED BILL</Text>
@@ -600,11 +519,8 @@ export default function BillScreen() {
         </Text>
       </View>
 
-      <Pressable style={styles.refreshButton} onPress={() => loadGridImport(true)}>
-        <Text style={styles.refreshText}>Refresh from Solis now</Text>
-      </Pressable>
       <Text style={styles.autoRefreshText}>
-        Import and export refresh automatically every 15 minutes
+        Solis import and export update automatically in the background every 15 minutes
       </Text>
     </ScrollView>
   );
@@ -655,15 +571,7 @@ const styles = StyleSheet.create({
   uploadTitle: { color: '#F5F7F8', fontSize: 16, fontWeight: '700' },
   uploadHint: { color: '#86A1AF', fontSize: 12, marginTop: 4 },
   profileNotice: { color: '#8FDDBA', backgroundColor: '#10251D', padding: 12, borderRadius: 12, fontSize: 12 },
-  qualityCard: { backgroundColor: '#0D1820', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27414F', gap: 7 },
-  qualityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  qualityTitle: { color: '#F5F7F8', fontSize: 16, fontWeight: '700' },
-  qualityBadge: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: '800' },
-  qualityFresh: { color: '#8FDDBA', backgroundColor: '#123126' },
-  qualityDelayed: { color: '#FFD37A', backgroundColor: '#352A12' },
-  qualityStale: { color: '#FF9A9A', backgroundColor: '#35191D' },
-  gmailCard: { backgroundColor: '#0D1820', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27414F', gap: 9 },
-  gmailSchedule: { color: '#8FDDBA', fontSize: 12, fontWeight: '600' },
+  qualitySummary: { color: '#8FA1AC', fontSize: 11, marginTop: -6 },
   heroCard: { backgroundColor: '#0D1820', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#20303A' },
   eyebrow: { color: '#FDB813', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   heroValue: { color: '#F5F7F8', fontSize: 42, fontWeight: '800', marginTop: 8 },
@@ -705,7 +613,5 @@ const styles = StyleSheet.create({
   referencePeriod: { color: '#8597A1', flex: 1, fontSize: 12 },
   referenceValue: { color: '#DDE3E6', fontSize: 12, fontWeight: '600' },
   disclaimer: { color: '#71838E', fontSize: 12, lineHeight: 17, marginTop: 2 },
-  refreshButton: { alignItems: 'center', padding: 14, borderRadius: 14, backgroundColor: '#FDB813' },
-  refreshText: { color: '#142028', fontWeight: '800' },
   autoRefreshText: { color: '#657985', fontSize: 11, textAlign: 'center', marginTop: -8 },
 });
