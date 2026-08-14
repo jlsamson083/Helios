@@ -1,0 +1,13 @@
+{
+  "id": "/",
+  "name": "Helios Home Energy",
+  "short_name": "Helios",
+  "description": "Private home solar, battery, grid, billing, and Tesla charging simulation dashboard.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071018",
+  "theme_color": "#071018",
+  "icons": [
+    { "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

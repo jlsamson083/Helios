@@ -15,6 +15,8 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: { backgroundColor: '#0D1820', borderTopColor: '#20303A' },
+        sceneStyle: { backgroundColor: '#071018' },
       }}>
       <Tabs.Screen
         name="index"
@@ -50,6 +52,10 @@ export default function TabLayout() {
           title: 'Settings',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
+      />
+      <Tabs.Screen
+        name="alerts"
+        options={{ href: null }}
       />
     </Tabs>
   );

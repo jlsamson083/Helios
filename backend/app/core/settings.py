@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # outside source control and sent in the X-Helios-Key header.
     API_AUTH_REQUIRED: bool = False
     HELIOS_API_KEY: str = ""
+    HELIOS_PASSCODE_HASH: str = ""
+    HELIOS_SESSION_SECRET: str = ""
+    WEBAUTHN_RP_ID: str = "168-107-79-27.sslip.io"
+    WEBAUTHN_ORIGIN: str = "https://168-107-79-27.sslip.io"
 
     MIN_BATTERY_SOC: float = 30.0
 
@@ -38,6 +42,10 @@ class Settings(BaseSettings):
     SOLIS_API_KEY_ID: str = ""
     SOLIS_API_SECRET: str = ""
     SOLIS_INVERTER_SN: str = ""
+
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:helios@localhost"
 
     @property
     def DATABASE_PATH(self) -> Path:

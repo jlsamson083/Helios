@@ -7,6 +7,8 @@ from app.core.logger import logger
 from app.routers.health import router as health_router
 from app.routers.energy import router as energy_router
 from app.routers.billing import router as billing_router
+from app.routers.alerts import router as alerts_router
+from app.routers.auth import router as auth_router
 
 from app.core.database import initialize_database
 from app.services.grid_counter_recorder import record_grid_counters
@@ -27,6 +29,8 @@ app.include_router(
     tags=["Health"]
 )
 
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+
 app.include_router(
     billing_router,
     prefix="/api/v1/billing",
@@ -38,6 +42,13 @@ app.include_router(
     energy_router,
     prefix="/api/v1/energy",
     tags=["Energy"],
+    dependencies=[Depends(require_api_key)],
+)
+
+app.include_router(
+    alerts_router,
+    prefix="/api/v1/alerts",
+    tags=["Alerts"],
     dependencies=[Depends(require_api_key)],
 )
 

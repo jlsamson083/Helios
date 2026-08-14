@@ -1,0 +1,20 @@
+168-107-79-27.sslip.io {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle {
+        root * /var/www/helios
+        try_files {path} {path}.html /index.html
+        file_server
+    }
+
+    header {
+        Cache-Control "no-cache"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+}
