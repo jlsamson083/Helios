@@ -163,6 +163,20 @@ def initialize_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cloud_cost_status (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                status TEXT NOT NULL,
+                actual_spend REAL,
+                forecasted_spend REAL,
+                currency TEXT,
+                budget_name TEXT,
+                checked_at TEXT,
+                error TEXT
+            )
+            """
+        )
 
         connection.commit()
 

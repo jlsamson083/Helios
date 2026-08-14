@@ -7,13 +7,43 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { passkeysSupported, registerPasskey } from '@/utils/passkeys';
-import { HELIOS_API_BASE } from '@/constants/helios';
+import { HELIOS_API_BASE, HELIOS_API_HEADERS } from '@/constants/helios';
+
+type CostStatus = {
+  status: 'zero_cost' | 'billing' | 'unavailable' | 'not_connected';
+  actual_spend: number | null;
+  forecasted_spend: number | null;
+  currency: string | null;
+  checked_at: string | null;
+  error: string | null;
+};
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [faceIdStatus, setFaceIdStatus] = useState('');
+  const [cost, setCost] = useState<CostStatus | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
+
+  const loadCost = useCallback(async (refresh = false) => {
+    setCostLoading(true);
+    try {
+      const base = HELIOS_API_BASE.replace(/\/energy$/, '');
+      const response = await fetch(`${base}/cost/${refresh ? 'refresh' : 'status'}`, {
+        method: refresh ? 'POST' : 'GET',
+        headers: HELIOS_API_HEADERS,
+      });
+      if (!response.ok) throw new Error('Unable to load Oracle cost data.');
+      setCost(await response.json());
+    } finally {
+      setCostLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCost().catch(() => undefined);
+  }, [loadCost]);
 
   async function setUpFaceId() {
     try {
@@ -50,6 +80,54 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.alertArrow}>›</Text>
       </Pressable>
+
+      <View style={[
+        styles.costCard,
+        cost?.status === 'billing' ? styles.costCardBilling : null,
+      ]}>
+        <View style={styles.costHeader}>
+          <View>
+            <Text style={styles.alertTitle}>Oracle cloud cost</Text>
+            <Text style={styles.alertText}>Current calendar month</Text>
+          </View>
+          <Text style={[
+            styles.costBadge,
+            cost?.status === 'billing' ? styles.costBadgeBilling : null,
+          ]}>
+            {cost?.status === 'zero_cost' ? 'VERIFIED ZERO' :
+              cost?.status === 'billing' ? 'BILLING' :
+                cost?.status === 'unavailable' ? 'CHECK FAILED' : 'NOT CONNECTED'}
+          </Text>
+        </View>
+        <Text style={styles.costAmount}>
+          {cost?.actual_spend == null
+            ? '—'
+            : `${cost.currency ?? 'USD'} ${cost.actual_spend.toFixed(2)}`}
+        </Text>
+        <Text style={styles.costDetail}>
+          {cost?.status === 'zero_cost'
+            ? 'Oracle currently reports no actual spend.'
+            : cost?.status === 'billing'
+              ? 'Warning: Oracle reports a non-zero actual charge.'
+              : cost?.status === 'unavailable'
+                ? 'The last Oracle billing check failed. Zero cost is not verified.'
+                : 'Connect the OCI budget monitor to verify zero cost.'}
+        </Text>
+        {cost?.checked_at ? (
+          <Text style={styles.costChecked}>
+            Checked {new Date(cost.checked_at).toLocaleString()}
+          </Text>
+        ) : null}
+        <Pressable
+          disabled={costLoading}
+          onPress={() => loadCost(true).catch(() => undefined)}
+          style={styles.costButton}
+        >
+          <Text style={styles.costButtonText}>
+            {costLoading ? 'Checking Oracle…' : 'Check Oracle now'}
+          </Text>
+        </Pressable>
+      </View>
 
       {Platform.OS === 'web' && passkeysSupported() ? (
         <View style={styles.faceCard}>
@@ -192,6 +270,17 @@ const styles = StyleSheet.create({
   faceButton: { backgroundColor: '#FDB813', borderRadius: 14, padding: 12, alignItems: 'center', marginTop: 14 },
   faceButtonText: { color: '#071018', fontSize: 13, fontWeight: '900' },
   faceStatus: { color: '#A6B2B9', fontSize: 12, marginTop: 10 },
+
+  costCard: { backgroundColor: '#102A25', borderColor: '#236B5B', borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 18 },
+  costCardBilling: { backgroundColor: '#321A1D', borderColor: '#A7474E' },
+  costHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  costBadge: { color: '#5EE0B7', backgroundColor: '#153D34', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, fontSize: 10, fontWeight: '900' },
+  costBadgeBilling: { color: '#FF9A9E', backgroundColor: '#57272B' },
+  costAmount: { color: '#FFFFFF', fontSize: 30, fontWeight: '900', marginTop: 18 },
+  costDetail: { color: '#A6B2B9', fontSize: 12, lineHeight: 18, marginTop: 5 },
+  costChecked: { color: '#71818B', fontSize: 11, marginTop: 8 },
+  costButton: { backgroundColor: '#FDB813', borderRadius: 14, padding: 12, alignItems: 'center', marginTop: 14 },
+  costButtonText: { color: '#071018', fontSize: 13, fontWeight: '900' },
 
   label: {
     color: '#B2BEC5',

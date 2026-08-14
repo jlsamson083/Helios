@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = "https://168-107-79-27.sslip.io"
 
+    # OCI cost monitoring uses the VM's instance principal. No OCI API key is
+    # stored in Helios. Enable only after the dynamic group and IAM policy exist.
+    OCI_COST_MONITOR_ENABLED: bool = False
+    OCI_REGION: str = "ap-singapore-1"
+    OCI_BUDGET_NAME: str = "Helios Zero Cost"
+    OCI_COST_ALERT_THRESHOLD_USD: float = 0.0
+
     @property
     def DATABASE_PATH(self) -> Path:
         return self.DATA_DIR / "helios.db"
