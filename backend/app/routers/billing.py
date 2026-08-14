@@ -32,12 +32,90 @@ async def _grid_totals():
     )
 
 
+async def _savings_totals():
+    data = await solis_service.get_inverter_status(settings.SOLIS_INVERTER_SN)
+    grid = data["grid"]["energy"]
+    home_load = data["energy"]["home_load"]
+    return (
+        float(home_load["total_kwh"] or 0),
+        float(grid["purchased_total_kwh"] or 0),
+        float(grid["sold_total_kwh"] or 0),
+    )
+
+
 @router.get("/profile")
 def billing_profile():
     profile = get_billing_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="No Meralco bill uploaded yet")
     return profile
+
+
+@router.post("/savings/activate")
+async def activate_savings():
+    profile = get_billing_profile()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Upload a Meralco bill first")
+    home_load, imported, exported = await _savings_totals()
+    started_at = datetime.now(timezone.utc).isoformat()
+    connection = get_connection()
+    try:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO savings_baseline (
+                id, started_at, home_load_total_kwh,
+                grid_import_total_kwh, grid_export_total_kwh
+            ) VALUES (1, ?, ?, ?, ?)
+            """,
+            (started_at, home_load, imported, exported),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return {"tracking": True, "started_at": started_at}
+
+
+@router.get("/savings")
+async def savings():
+    profile = get_billing_profile()
+    if profile is None:
+        return {"tracking": False, "reason": "Upload a Meralco bill first"}
+    connection = get_connection()
+    try:
+        baseline = connection.execute(
+            "SELECT * FROM savings_baseline WHERE id = 1"
+        ).fetchone()
+    finally:
+        connection.close()
+    if baseline is None:
+        return {"tracking": False, "reason": "Savings tracking is not active"}
+
+    home_load, imported, exported = await _savings_totals()
+    home_delta = max(home_load - baseline["home_load_total_kwh"], 0)
+    import_delta = max(imported - baseline["grid_import_total_kwh"], 0)
+    export_delta = max(exported - baseline["grid_export_total_kwh"], 0)
+    import_rate = float(profile["import_rate_php_per_kwh"] or 0)
+    export_rate = float(profile["export_rate_php_per_kwh"] or 0)
+    without_solar = home_delta * import_rate
+    measured_grid_cost = max(import_delta * import_rate - export_delta * export_rate, 0)
+    savings_php = max(without_solar - measured_grid_cost, 0)
+    solar_covered_kwh = max(home_delta - import_delta, 0)
+    return {
+        "tracking": True,
+        "started_at": baseline["started_at"],
+        "home_load_kwh": round(home_delta, 2),
+        "grid_import_kwh": round(import_delta, 2),
+        "grid_export_kwh": round(export_delta, 2),
+        "without_solar_php": round(without_solar, 2),
+        "measured_grid_cost_php": round(measured_grid_cost, 2),
+        "savings_php": round(savings_php, 2),
+        "solar_covered_percent": round(
+            solar_covered_kwh / home_delta * 100 if home_delta else 0, 1
+        ),
+        "import_rate_php_per_kwh": import_rate,
+        "export_rate_php_per_kwh": export_rate,
+        "scope": "variable_energy_since_activation",
+    }
 
 
 @router.post("/upload")

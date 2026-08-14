@@ -177,6 +177,17 @@ def initialize_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS savings_baseline (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                started_at TEXT NOT NULL,
+                home_load_total_kwh REAL NOT NULL,
+                grid_import_total_kwh REAL NOT NULL,
+                grid_export_total_kwh REAL NOT NULL
+            )
+            """
+        )
 
         connection.commit()
 

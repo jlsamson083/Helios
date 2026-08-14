@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -131,6 +131,38 @@ class BillingApiTests(unittest.TestCase):
             save.call_args.kwargs["confirmed_grid_import_kwh"],
             98.0,
         )
+
+    def test_savings_waits_for_activation_baseline(self) -> None:
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = None
+        with (
+            self.auth_enabled(),
+            patch("app.routers.billing.get_billing_profile", return_value={"import_rate_php_per_kwh": 15}),
+            patch("app.routers.billing.get_connection", return_value=connection),
+        ):
+            response = self.client.get(
+                "/api/v1/billing/savings", headers=self.headers
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["tracking"])
+
+    def test_activate_savings_uses_live_solis_totals(self) -> None:
+        connection = MagicMock()
+        with (
+            self.auth_enabled(),
+            patch("app.routers.billing.get_billing_profile", return_value={"import_rate_php_per_kwh": 15}),
+            patch(
+                "app.routers.billing._savings_totals",
+                new=AsyncMock(return_value=(1200.0, 900.0, 300.0)),
+            ),
+            patch("app.routers.billing.get_connection", return_value=connection),
+        ):
+            response = self.client.post(
+                "/api/v1/billing/savings/activate", headers=self.headers
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["tracking"])
+        connection.commit.assert_called_once()
 
 
 if __name__ == "__main__":

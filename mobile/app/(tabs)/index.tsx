@@ -37,6 +37,15 @@ type GridEnergySummary = {
   month: { grid_import_kwh: number; grid_export_kwh: number };
 };
 
+type SavingsSummary = {
+  tracking: boolean;
+  started_at?: string;
+  savings_php?: number;
+  without_solar_php?: number;
+  measured_grid_cost_php?: number;
+  solar_covered_percent?: number;
+};
+
 const API_BASE = HELIOS_API_BASE;
 
 export default function HomeScreen() {
@@ -44,6 +53,7 @@ export default function HomeScreen() {
     useState<HeliosStatus | null>(null);
   const [gridEnergy, setGridEnergy] =
     useState<GridEnergySummary | null>(null);
+  const [savings, setSavings] = useState<SavingsSummary | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -58,9 +68,10 @@ export default function HomeScreen() {
       setError(null);
       assertHeliosConfigured();
 
-      const [statusResponse, historyResponse] = await Promise.all([
+      const [statusResponse, historyResponse, savingsResponse] = await Promise.all([
         fetch(`${API_BASE}/status`, { headers: HELIOS_API_HEADERS }),
         fetch(`${API_BASE}/history/summary`, { headers: HELIOS_API_HEADERS }),
+        fetch(`${API_BASE.replace(/\/energy$/, '')}/billing/savings`, { headers: HELIOS_API_HEADERS }),
       ]);
 
       if (!statusResponse.ok) {
@@ -77,6 +88,7 @@ export default function HomeScreen() {
 
       setStatus(statusData);
       setGridEnergy(await historyResponse.json());
+      if (savingsResponse.ok) setSavings(await savingsResponse.json());
     } catch (err) {
       setError(
         err instanceof Error
@@ -449,6 +461,31 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <Text style={styles.gridEnergySource}>Read directly from Solis cumulative counters</Text>
+              </View>
+            )}
+
+            {savings?.tracking && (
+              <View style={styles.savingsCard}>
+                <Text style={styles.cardEyebrow}>MEASURED SOLAR SAVINGS</Text>
+                <Text style={styles.savingsValue}>
+                  ₱{(savings.savings_php ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+                </Text>
+                <Text style={styles.savingsCaption}>Variable energy savings since activation</Text>
+                <View style={styles.savingsRow}>
+                  <View>
+                    <Text style={styles.savingsLabel}>WITHOUT SOLAR</Text>
+                    <Text style={styles.savingsMetric}>₱{(savings.without_solar_php ?? 0).toFixed(0)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.savingsLabel}>GRID COST</Text>
+                    <Text style={styles.savingsMetric}>₱{(savings.measured_grid_cost_php ?? 0).toFixed(0)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.savingsLabel}>SOLAR COVERED</Text>
+                    <Text style={styles.savingsMetric}>{(savings.solar_covered_percent ?? 0).toFixed(0)}%</Text>
+                  </View>
+                </View>
+                <Text style={styles.gridEnergySource}>Uses live Solis totals and your uploaded Meralco rates · excludes fixed charges</Text>
               </View>
             )}
 
@@ -1517,6 +1554,13 @@ const styles =
     gridExportValue: { color: '#52D39A' },
     gridEnergyDivider: { height: 1, backgroundColor: '#20303A' },
     gridEnergySource: { color: '#657985', fontSize: 10, textAlign: 'center' },
+
+    savingsCard: { backgroundColor: '#102A25', borderColor: '#236B5B', borderWidth: 1, borderRadius: 22, padding: 19, marginTop: 14 },
+    savingsValue: { color: '#5EE0B7', fontSize: 34, fontWeight: '900', marginTop: 10 },
+    savingsCaption: { color: '#93A7A0', fontSize: 11, marginTop: 2 },
+    savingsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginVertical: 18 },
+    savingsLabel: { color: '#718D84', fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
+    savingsMetric: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 4 },
 
     updated: {
       color: '#55656F',
