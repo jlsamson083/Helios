@@ -1,10 +1,12 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from app.core.settings import settings
 from app.main import app
+from app.routers.billing import _cycle_data_quality
 
 
 class BillingApiTests(unittest.TestCase):
@@ -19,6 +21,35 @@ class BillingApiTests(unittest.TestCase):
             API_AUTH_REQUIRED=True,
             HELIOS_API_KEY="test-secret",
         )
+
+    def test_cycle_quality_is_unavailable_without_solis_samples(self) -> None:
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = {
+            "latest_at": None,
+            "sample_days": 0,
+        }
+        with patch("app.routers.billing.get_connection", return_value=connection):
+            result = _cycle_data_quality("2026-08-01T00:00:00+00:00")
+
+        self.assertEqual(result["data_freshness"], "unavailable")
+        self.assertEqual(result["data_confidence"], "low")
+
+    def test_cycle_quality_downgrades_stale_solis_data(self) -> None:
+        now = datetime(2026, 8, 14, 4, 0, tzinfo=timezone.utc)
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = {
+            "latest_at": (now - timedelta(hours=3)).isoformat(),
+            "sample_days": 10,
+        }
+        with patch("app.routers.billing.get_connection", return_value=connection):
+            result = _cycle_data_quality(
+                "2026-08-01T00:00:00+00:00",
+                now=now,
+            )
+
+        self.assertEqual(result["data_freshness"], "stale")
+        self.assertEqual(result["data_confidence"], "low")
+        self.assertEqual(result["solis_age_minutes"], 180)
 
     def test_upload_requires_authentication(self) -> None:
         with self.auth_enabled():
@@ -64,6 +95,16 @@ class BillingApiTests(unittest.TestCase):
                 "app.routers.billing._grid_totals",
                 new=AsyncMock(return_value=(902.5, 451.25)),
             ),
+            patch(
+                "app.routers.billing._cycle_data_quality",
+                return_value={
+                    "latest_solis_at": "2026-08-14T03:00:00+00:00",
+                    "solis_age_minutes": 5,
+                    "sample_days": 4,
+                    "data_freshness": "fresh",
+                    "data_confidence": "medium",
+                },
+            ),
         ):
             response = self.client.get(
                 "/api/v1/billing/current-cycle",
@@ -77,6 +118,10 @@ class BillingApiTests(unittest.TestCase):
         self.assertEqual(data["grid_import_kwh"], 100.5)
         self.assertEqual(data["estimated_grid_export_kwh"], 1.25)
         self.assertEqual(data["grid_export_kwh"], 1.25)
+        self.assertEqual(data["calculation_basis"], "uploaded_bill_plus_solis")
+        self.assertEqual(data["data_freshness"], "fresh")
+        self.assertEqual(data["data_confidence"], "medium")
+        self.assertEqual(data["sample_days"], 4)
 
     def test_meter_reconciliation_rejects_reading_before_bill(self) -> None:
         profile = {"current_meter_reading": 8252.0}

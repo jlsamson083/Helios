@@ -46,6 +46,14 @@ type BillingProfile = {
   carried_credit_php: number | null;
 };
 
+type DataQuality = {
+  freshness: 'fresh' | 'delayed' | 'stale' | 'unavailable';
+  confidence: 'high' | 'medium' | 'low';
+  latestSolisAt: string | null;
+  ageMinutes: number | null;
+  sampleDays: number;
+};
+
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -81,6 +89,7 @@ export default function BillScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
 
   const loadGridImport = useCallback(async (useSolisImport = true) => {
     try {
@@ -101,6 +110,13 @@ export default function BillScreen() {
         setCycleDays(String(data.cycle_days));
         setConfirmedImport(data.confirmed_grid_import_kwh);
         setEstimatedImport(data.estimated_grid_import_kwh);
+        setDataQuality({
+          freshness: data.data_freshness,
+          confidence: data.data_confidence,
+          latestSolisAt: data.latest_solis_at,
+          ageMinutes: data.solis_age_minutes,
+          sampleDays: data.sample_days,
+        });
         setImportSource('solis');
         return;
       }
@@ -316,6 +332,35 @@ export default function BillScreen() {
         <Text style={styles.profileNotice}>
           Using {billingProfile.billing_period} · {billingProfile.consumption_kwh.toFixed(0)} kWh · ₱{billingProfile.import_rate_php_per_kwh.toFixed(2)}/kWh
         </Text>
+      )}
+
+      {billingProfile && dataQuality && (
+        <View style={styles.qualityCard}>
+          <View style={styles.qualityHeader}>
+            <Text style={styles.qualityTitle}>Projection data quality</Text>
+            <Text style={[
+              styles.qualityBadge,
+              dataQuality.freshness === 'fresh'
+                ? styles.qualityFresh
+                : dataQuality.freshness === 'delayed'
+                  ? styles.qualityDelayed
+                  : styles.qualityStale,
+            ]}>
+              {dataQuality.freshness.toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.body}>
+            {dataQuality.confidence.toUpperCase()} confidence · {dataQuality.sampleDays} measured day{dataQuality.sampleDays === 1 ? '' : 's'}
+          </Text>
+          <Text style={styles.hint}>
+            {dataQuality.ageMinutes === null
+              ? 'No Solis measurement has been recorded since the uploaded bill baseline.'
+              : `Latest Solis measurement was ${dataQuality.ageMinutes} minute${dataQuality.ageMinutes === 1 ? '' : 's'} ago.`}
+          </Text>
+          <Text style={styles.hint}>
+            Basis: your latest uploaded bill plus measured Solis import and export only.
+          </Text>
+        </View>
       )}
 
       <View style={styles.heroCard}>
@@ -552,6 +597,13 @@ const styles = StyleSheet.create({
   uploadTitle: { color: '#F5F7F8', fontSize: 16, fontWeight: '700' },
   uploadHint: { color: '#86A1AF', fontSize: 12, marginTop: 4 },
   profileNotice: { color: '#8FDDBA', backgroundColor: '#10251D', padding: 12, borderRadius: 12, fontSize: 12 },
+  qualityCard: { backgroundColor: '#0D1820', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27414F', gap: 7 },
+  qualityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  qualityTitle: { color: '#F5F7F8', fontSize: 16, fontWeight: '700' },
+  qualityBadge: { overflow: 'hidden', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: '800' },
+  qualityFresh: { color: '#8FDDBA', backgroundColor: '#123126' },
+  qualityDelayed: { color: '#FFD37A', backgroundColor: '#352A12' },
+  qualityStale: { color: '#FF9A9A', backgroundColor: '#35191D' },
   heroCard: { backgroundColor: '#0D1820', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#20303A' },
   eyebrow: { color: '#FDB813', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   heroValue: { color: '#F5F7F8', fontSize: 42, fontWeight: '800', marginTop: 8 },

@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
@@ -34,6 +35,57 @@ async def _grid_totals():
         float(grid["purchased_total_kwh"] or 0),
         float(grid["sold_total_kwh"] or 0),
     )
+
+
+def _cycle_data_quality(baseline_at: str, *, now: Optional[datetime] = None) -> dict:
+    """Describe the measured data behind the current-cycle estimate."""
+    connection = get_connection()
+    try:
+        row = connection.execute(
+            """
+            SELECT MAX(timestamp) AS latest_at,
+                   COUNT(DISTINCT substr(timestamp, 1, 10)) AS sample_days
+            FROM solis_grid_counters
+            WHERE timestamp >= ?
+            """,
+            (baseline_at,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    latest_at = row["latest_at"] if row else None
+    sample_days = int(row["sample_days"] or 0) if row else 0
+    if latest_at is None:
+        return {
+            "latest_solis_at": None,
+            "solis_age_minutes": None,
+            "sample_days": 0,
+            "data_freshness": "unavailable",
+            "data_confidence": "low",
+        }
+
+    latest = datetime.fromisoformat(latest_at)
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+    age_minutes = max(
+        int(((now or datetime.now(timezone.utc)) - latest).total_seconds() / 60),
+        0,
+    )
+    freshness = "fresh" if age_minutes <= 30 else "delayed" if age_minutes <= 120 else "stale"
+    confidence = (
+        "high"
+        if freshness == "fresh" and sample_days >= 7
+        else "medium"
+        if freshness != "stale" and sample_days >= 3
+        else "low"
+    )
+    return {
+        "latest_solis_at": latest.isoformat(),
+        "solis_age_minutes": age_minutes,
+        "sample_days": sample_days,
+        "data_freshness": freshness,
+        "data_confidence": confidence,
+    }
 
 
 async def _savings_totals():
@@ -206,6 +258,7 @@ async def current_cycle():
     estimated_export = max(exported - profile["baseline_grid_export_kwh"], 0)
     confirmed_import = float(profile.get("confirmed_grid_import_kwh") or 0)
     confirmed_export = float(profile.get("confirmed_grid_export_kwh") or 0)
+    quality = _cycle_data_quality(profile["baseline_at"])
     return {
         "grid_import_kwh": confirmed_import + estimated_import,
         "grid_export_kwh": confirmed_export + estimated_export,
@@ -216,6 +269,8 @@ async def current_cycle():
         "baseline_at": profile["baseline_at"],
         "elapsed_days": elapsed_days,
         "cycle_days": cycle_days,
+        "calculation_basis": "uploaded_bill_plus_solis",
+        **quality,
     }
 
 
