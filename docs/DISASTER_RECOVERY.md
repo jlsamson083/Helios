@@ -28,6 +28,11 @@ principal, and retains the newest 30 cloud backups. `Persistent=true` makes a
 missed run execute after a VM restart. The Mac launchd backup remains an
 optional second copy and is no longer required for daily protection.
 
+The API reads `/opt/helios/data/cloud_backup_status.json` and checks it hourly.
+Settings shows the last successful backup and next scheduled run. If the last
+success becomes more than 26 hours old, Helios sends one overdue push alert. It
+stays silent while overdue and sends one recovery alert after backups resume.
+
 To recover without the original Mac, open **Storage → Object Storage & Archive
 Storage → Buckets → helios-backups → Objects → daily**, download the newest
 archive, and retrieve the separately stored encryption key from the password
@@ -60,6 +65,11 @@ tar -tzf /tmp/helios-recovery.tar.gz
 On a replacement Oracle Linux VM, securely copy the archive, extract it as root
 from `/`, reload systemd, and start `helios` and `caddy`. Delete every plaintext
 temporary archive immediately after the restore.
+
+The initial production restore drill completed successfully on 2026-08-14: the
+newest Object Storage archive was downloaded, decrypted in a temporary
+directory, extracted, and passed SQLite `PRAGMA integrity_check`. The temporary
+plaintext recovery files were then deleted.
 
 ## Verification
 

@@ -179,6 +179,15 @@ def initialize_database() -> None:
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS backup_monitor_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                health TEXT NOT NULL,
+                checked_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS savings_baseline (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 started_at TEXT NOT NULL,

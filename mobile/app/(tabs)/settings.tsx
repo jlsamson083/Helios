@@ -20,11 +20,25 @@ type CostStatus = {
   error: string | null;
 };
 
+type BackupStatus = {
+  status: 'healthy' | 'stale' | 'never_run' | 'unavailable';
+  last_success_at: string | null;
+  age_hours: number | null;
+  last_object: string | null;
+  size_bytes: number | null;
+  retention_count: number;
+  stale_after_hours: number;
+  next_scheduled_at: string;
+  error: string | null;
+};
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [faceIdStatus, setFaceIdStatus] = useState('');
   const [cost, setCost] = useState<CostStatus | null>(null);
   const [costLoading, setCostLoading] = useState(false);
+  const [backup, setBackup] = useState<BackupStatus | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
 
   const loadCost = useCallback(async (refresh = false) => {
     setCostLoading(true);
@@ -41,9 +55,24 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const loadBackup = useCallback(async () => {
+    setBackupLoading(true);
+    try {
+      const base = HELIOS_API_BASE.replace(/\/energy$/, '');
+      const response = await fetch(`${base}/backup/status`, {
+        headers: HELIOS_API_HEADERS,
+      });
+      if (!response.ok) throw new Error('Unable to load cloud backup status.');
+      setBackup(await response.json());
+    } finally {
+      setBackupLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadCost().catch(() => undefined);
-  }, [loadCost]);
+    loadBackup().catch(() => undefined);
+  }, [loadBackup, loadCost]);
 
   async function setUpFaceId() {
     try {
@@ -125,6 +154,49 @@ export default function SettingsScreen() {
         >
           <Text style={styles.costButtonText}>
             {costLoading ? 'Checking Oracle…' : 'Check Oracle now'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={[
+        styles.backupCard,
+        backup?.status === 'stale' || backup?.status === 'unavailable'
+          ? styles.backupCardWarning
+          : null,
+      ]}>
+        <View style={styles.costHeader}>
+          <View>
+            <Text style={styles.alertTitle}>Encrypted cloud backup</Text>
+            <Text style={styles.alertText}>Daily at 6:00 PM · newest 30 retained</Text>
+          </View>
+          <Text style={[
+            styles.backupBadge,
+            backup?.status === 'stale' || backup?.status === 'unavailable'
+              ? styles.backupBadgeWarning
+              : null,
+          ]}>
+            {backup?.status === 'healthy' ? 'PROTECTED' :
+              backup?.status === 'stale' ? 'OVERDUE' :
+                backup?.status === 'unavailable' ? 'CHECK FAILED' : 'WAITING'}
+          </Text>
+        </View>
+        <Text style={styles.backupDetail}>
+          {backup?.last_success_at
+            ? `Last successful backup: ${new Date(backup.last_success_at).toLocaleString()}`
+            : 'No successful cloud backup has been recorded yet.'}
+        </Text>
+        {backup?.size_bytes != null ? (
+          <Text style={styles.costChecked}>
+            Encrypted size {(backup.size_bytes / 1024).toFixed(1)} KB · Next scheduled {new Date(backup.next_scheduled_at).toLocaleString()}
+          </Text>
+        ) : null}
+        <Pressable
+          disabled={backupLoading}
+          onPress={() => loadBackup().catch(() => undefined)}
+          style={styles.backupButton}
+        >
+          <Text style={styles.backupButtonText}>
+            {backupLoading ? 'Checking backup…' : 'Refresh backup status'}
           </Text>
         </Pressable>
       </View>
@@ -281,6 +353,13 @@ const styles = StyleSheet.create({
   costChecked: { color: '#71818B', fontSize: 11, marginTop: 8 },
   costButton: { backgroundColor: '#FDB813', borderRadius: 14, padding: 12, alignItems: 'center', marginTop: 14 },
   costButtonText: { color: '#071018', fontSize: 13, fontWeight: '900' },
+  backupCard: { backgroundColor: '#10232D', borderColor: '#27576A', borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 18 },
+  backupCardWarning: { backgroundColor: '#321F17', borderColor: '#A66535' },
+  backupBadge: { color: '#75D8FF', backgroundColor: '#143848', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, fontSize: 10, fontWeight: '900' },
+  backupBadgeWarning: { color: '#FFC088', backgroundColor: '#58351F' },
+  backupDetail: { color: '#D5E5EC', fontSize: 13, lineHeight: 19, marginTop: 18 },
+  backupButton: { borderColor: '#3D7185', borderWidth: 1, borderRadius: 14, padding: 12, alignItems: 'center', marginTop: 14 },
+  backupButtonText: { color: '#8DDEF8', fontSize: 13, fontWeight: '900' },
 
   label: {
     color: '#B2BEC5',

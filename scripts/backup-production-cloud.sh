@@ -13,6 +13,7 @@ snapshot="$work_dir/helios-$timestamp.sqlite"
 archive="$work_dir/helios-$timestamp.tar.gz.enc"
 object_name="daily/helios-$timestamp.tar.gz.enc"
 objects_json="$work_dir/objects.json"
+status_file="${HELIOS_BACKUP_STATUS_FILE:-/opt/helios/data/cloud_backup_status.json}"
 
 mkdir -p "$work_dir"
 test -x "$oci_cli"
@@ -59,6 +60,28 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
   --file "$archive" \
   --no-multipart \
   --force >/dev/null
+
+archive_size="$(wc -c <"$archive" | tr -d ' ')"
+success_timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+status_tmp="$status_file.tmp"
+python3 - "$status_tmp" "$success_timestamp" "$object_name" "$archive_size" "$retention_count" <<'PY'
+import json
+import os
+import sys
+
+path, timestamp, object_name, size, retention = sys.argv[1:]
+payload = {
+    "last_success_at": timestamp,
+    "last_object": object_name,
+    "size_bytes": int(size),
+    "retention_count": int(retention),
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, separators=(",", ":"))
+    handle.write("\n")
+os.chmod(path, 0o644)
+PY
+mv "$status_tmp" "$status_file"
 
 "$oci_cli" os object list \
   --auth instance_principal \

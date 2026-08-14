@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,9 +55,18 @@ class Settings(BaseSettings):
     OCI_BUDGET_NAME: str = "Helios-Zero-Cost"
     OCI_COST_ALERT_THRESHOLD_USD: float = 0.0
 
+    CLOUD_BACKUP_STATUS_PATH: Optional[Path] = None
+    CLOUD_BACKUP_STALE_HOURS: float = 26.0
+
     @property
     def DATABASE_PATH(self) -> Path:
         return self.DATA_DIR / "helios.db"
+
+    @property
+    def BACKUP_STATUS_PATH(self) -> Path:
+        return self.CLOUD_BACKUP_STATUS_PATH or (
+            self.DATA_DIR / "cloud_backup_status.json"
+        )
 
     @model_validator(mode="after")
     def require_tesla_simulation(self) -> "Settings":

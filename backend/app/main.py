@@ -10,10 +10,12 @@ from app.routers.billing import router as billing_router
 from app.routers.alerts import router as alerts_router
 from app.routers.auth import router as auth_router
 from app.routers.cost import router as cost_router
+from app.routers.backup import router as backup_router
 
 from app.core.database import initialize_database
 from app.services.grid_counter_recorder import record_grid_counters
 from app.services.cloud_cost import refresh_cost_status
+from app.services.backup_health import check_backup_health
 
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 
@@ -61,6 +63,13 @@ app.include_router(
     dependencies=[Depends(require_api_key)],
 )
 
+app.include_router(
+    backup_router,
+    prefix="/api/v1/backup",
+    tags=["Cloud backup"],
+    dependencies=[Depends(require_api_key)],
+)
+
 @app.get("/", dependencies=[Depends(require_api_key)])
 def root():
     return {
@@ -74,6 +83,7 @@ initialize_database()
 async def start_grid_counter_recorder():
     await record_grid_counters()
     await refresh_cost_status()
+    await check_backup_health()
     if not scheduler.running:
         scheduler.add_job(
             record_grid_counters,
@@ -89,6 +99,15 @@ async def start_grid_counter_recorder():
             "interval",
             hours=6,
             id="oci-cloud-cost",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler.add_job(
+            check_backup_health,
+            "interval",
+            hours=1,
+            id="cloud-backup-health",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
