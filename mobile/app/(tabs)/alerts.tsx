@@ -111,9 +111,15 @@ export default function AlertsScreen() {
       });
       if (!response.ok) throw new Error('Unable to send the test notification.');
       const result = await response.json();
-      setPushStatus(result.sent > 0
-        ? `Test notification sent to ${result.sent} subscribed device${result.sent === 1 ? '' : 's'}.`
-        : 'No subscribed device yet. Enable notifications first.');
+      if (result.sent > 0) {
+        setPushStatus(`Test notification sent to ${result.sent} subscribed device${result.sent === 1 ? '' : 's'}.`);
+      } else if (result.failed > 0) {
+        setPushStatus('Your device is subscribed, but the push service rejected delivery.');
+      } else if (result.removed > 0) {
+        setPushStatus('The saved subscription expired. Enable notifications again.');
+      } else {
+        setPushStatus('No subscribed device yet. Enable notifications first.');
+      }
     } catch (caught) {
       setPushStatus(caught instanceof Error ? caught.message : 'Test notification failed.');
     }
