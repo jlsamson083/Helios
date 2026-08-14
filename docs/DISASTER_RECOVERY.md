@@ -10,6 +10,7 @@ traffic and no paid resources.
 - Encrypted local archive:
   `.secrets/backups/helios-recovery-2026-08-14.tar.gz.enc`
 - Encryption key: `.secrets/backup.key`
+- Automatic encrypted Mac backups: `.secrets/backups/helios-automatic-*.tar.gz.enc`
 
 The encrypted archive contains the persistent SQLite data, production
 environment file, Caddy configuration, and systemd service definitions. Source
@@ -17,6 +18,12 @@ code remains in Git.
 
 Keep the archive and key in separate places. Copy the key to a password manager
 or offline drive. Both `.secrets/` paths are ignored by Git.
+
+The Mac runs `scripts/backup-production.sh` daily at 6:00 PM through launchd.
+It uses SQLite's online backup API, streams production configuration over SSH,
+encrypts locally with the existing key, and verifies that the resulting archive
+can be decrypted and listed. If the Mac is off and does not run the job, launch
+the script manually when it is next available. No paid cloud storage is used.
 
 ## Restore the OCI boot volume
 
