@@ -52,7 +52,6 @@ export default function RootLayout() {
       setError('That username or password is not valid.');
       return;
     }
-    window.localStorage.removeItem('helios_api_key');
     setAuthenticated(true);
   }
 
