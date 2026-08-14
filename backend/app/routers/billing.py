@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.core.settings import settings
+from app.core.database import get_connection
 from app.integrations.solis.service import SolisService
 from app.services.meralco_bill import (
     get_billing_profile,
@@ -12,6 +13,7 @@ from app.services.meralco_bill import (
     save_billing_profile,
     save_meter_reconciliation,
 )
+from app.services.billing_trend import calculate_daily_grid_deltas
 
 router = APIRouter()
 solis_service = SolisService()
@@ -75,6 +77,57 @@ async def current_cycle():
         "baseline_at": profile["baseline_at"],
         "elapsed_days": elapsed_days,
         "cycle_days": cycle_days,
+    }
+
+
+@router.get("/daily-grid")
+def daily_grid_trend():
+    profile = get_billing_profile()
+    if profile is None or profile.get("baseline_at") is None:
+        raise HTTPException(status_code=404, detail="Upload a bill to start a cycle")
+    connection = get_connection()
+    try:
+        rows = connection.execute(
+            """
+            SELECT timestamp, grid_import_total_kwh, grid_export_total_kwh
+            FROM solis_grid_counters WHERE timestamp >= ?
+            ORDER BY timestamp ASC
+            """,
+            (profile["baseline_at"],),
+        ).fetchall()
+    finally:
+        connection.close()
+    days = calculate_daily_grid_deltas(
+        rows,
+        baseline_import_kwh=float(profile["baseline_grid_import_kwh"]),
+        baseline_export_kwh=float(profile["baseline_grid_export_kwh"]),
+    )
+    measured_import = sum(day["import_kwh"] for day in days)
+    measured_export = sum(day["export_kwh"] for day in days)
+    completed_days = max(len(days), 1)
+    average_import = measured_import / completed_days
+    average_export = measured_export / completed_days
+    period_end = date.fromisoformat(profile["period_end"])
+    next_reading = date.fromisoformat(profile["next_meter_reading_date"])
+    today = datetime.now(ZoneInfo("Asia/Manila")).date()
+    elapsed_days = max((today - period_end).days, 1)
+    cycle_days = max((next_reading - period_end).days, elapsed_days)
+    remaining_days = max(cycle_days - elapsed_days, 0)
+    confirmed_import = float(profile.get("confirmed_grid_import_kwh") or 0)
+    confirmed_export = float(profile.get("confirmed_grid_export_kwh") or 0)
+    confidence = "high" if len(days) >= 7 else "medium" if len(days) >= 3 else "low"
+    return {
+        "days": days[-31:],
+        "sample_days": len(days),
+        "confidence": confidence,
+        "average_daily_import_kwh": round(average_import, 2),
+        "average_daily_export_kwh": round(average_export, 2),
+        "projected_cycle_import_kwh": round(
+            confirmed_import + measured_import + average_import * remaining_days, 1
+        ),
+        "projected_cycle_export_kwh": round(
+            confirmed_export + measured_export + average_export * remaining_days, 1
+        ),
     }
 
 
