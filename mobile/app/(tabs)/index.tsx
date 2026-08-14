@@ -167,6 +167,10 @@ export default function HomeScreen() {
             HELIOS
           </Text>
 
+          <Text style={styles.brandBy}>
+            by Eros Enterprise
+          </Text>
+
           <Text style={styles.subtitle}>
             Home Energy
           </Text>
@@ -930,7 +934,15 @@ const styles =
     subtitle: {
       color: '#74838E',
       fontSize: 14,
-      marginTop: 2,
+      marginTop: 4,
+    },
+
+    brandBy: {
+      color: '#FDB813',
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginTop: -1,
     },
 
     live: {

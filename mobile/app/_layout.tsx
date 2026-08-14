@@ -78,6 +78,8 @@ export default function RootLayout() {
       <View style={styles.login}>
         <Text style={styles.sun}>☀</Text>
         <Text style={styles.loginTitle}>Helios</Text>
+        <Text style={styles.loginBrand}>by Eros Enterprise</Text>
+        <Text style={styles.loginSubtitle}>Home Energy</Text>
         <Text style={styles.loginText}>Sign in once. This device will remember your session.</Text>
         <TextInput
           autoCapitalize="none"
@@ -128,6 +130,8 @@ const styles = StyleSheet.create({
   login: { flex: 1, backgroundColor: '#071018', justifyContent: 'center', padding: 28 },
   sun: { color: '#FDB813', fontSize: 48, textAlign: 'center' },
   loginTitle: { color: '#FFFFFF', fontSize: 36, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+  loginBrand: { color: '#FDB813', fontSize: 14, fontWeight: '700', textAlign: 'center', marginTop: 2 },
+  loginSubtitle: { color: '#84939D', fontSize: 13, textAlign: 'center', marginTop: 4 },
   loginText: { color: '#84939D', fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8, marginBottom: 26 },
   input: { color: '#FFFFFF', backgroundColor: '#0D1820', borderColor: '#24414F', borderWidth: 1, borderRadius: 16, padding: 16, fontSize: 16 },
   passwordInput: { marginTop: 12 },
