@@ -29,8 +29,8 @@ fi
   printf 'HELIOS_GMAIL_USERNAME=%s\n' "$gmail_address"
   printf 'HELIOS_GMAIL_APP_PASSWORD=%s\n' "$app_password"
 } | ssh -i "$ssh_key" -o BatchMode=yes "$remote_host" \
-  "sudo install -d -o helios -g helios -m 0700 /opt/helios/secrets &&
-   sudo -u helios sh -c 'umask 077; tmp=\"${remote_secret}.tmp\"; cat > \"\$tmp\"; mv \"\$tmp\" \"${remote_secret}\"'"
+  "sudo install -d -o opc -g opc -m 0700 /opt/helios/secrets &&
+   sudo -u opc sh -c 'umask 077; tmp=\"${remote_secret}.tmp\"; cat > \"\$tmp\"; mv \"\$tmp\" \"${remote_secret}\"'"
 
 unset app_password
 ssh -i "$ssh_key" -o BatchMode=yes "$remote_host" \
