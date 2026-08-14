@@ -93,3 +93,18 @@ The reboot recovery drill on 2026-08-14 confirmed that `helios`, `caddy`, the
 cloud-backup timer, and the security-update timer return automatically without
 the Mac. Helios can briefly return HTTP 502 while its initial Solis request
 finishes; the public health endpoint recovered without intervention.
+
+## Meralco email import
+
+The dedicated mailbox `helios.byerosenterprise@gmail.com` receives only
+filtered Meralco bill notifications. Helios connects over Gmail IMAP with a
+separate revocable Google app password stored at
+`/opt/helios/secrets/gmail-import.env` with mode `600`; the normal Google
+password is never stored. The importer accepts only original messages from
+`customercare@meralco.com.ph` whose subject contains `Meralco Bill for` and
+checks every six hours or on demand.
+
+Email summaries provide the billing period, consumption, amount due, and due
+date. They do not provide detailed meter readings, component rates, or
+net-metering credits, so imported email history never silently replaces the
+active PDF-derived billing baseline.

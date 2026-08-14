@@ -16,6 +16,7 @@ from app.core.database import initialize_database
 from app.services.grid_counter_recorder import record_grid_counters
 from app.services.cloud_cost import refresh_cost_status
 from app.services.backup_health import check_backup_health
+from app.services.meralco_email import sync_meralco_email_async
 
 scheduler = AsyncIOScheduler(timezone="Asia/Manila")
 
@@ -108,6 +109,15 @@ async def start_grid_counter_recorder():
             "interval",
             hours=1,
             id="cloud-backup-health",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler.add_job(
+            sync_meralco_email_async,
+            "interval",
+            hours=6,
+            id="meralco-gmail-import",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

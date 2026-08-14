@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     CLOUD_BACKUP_STATUS_PATH: Optional[Path] = None
     CLOUD_BACKUP_STALE_HOURS: float = 26.0
 
+    HELIOS_GMAIL_USERNAME: str = ""
+    HELIOS_GMAIL_APP_PASSWORD: str = ""
+    MERALCO_EMAIL_SENDER: str = "customercare@meralco.com.ph"
+
     @property
     def DATABASE_PATH(self) -> Path:
         return self.DATA_DIR / "helios.db"

@@ -15,6 +15,11 @@ from app.services.meralco_bill import (
     save_meter_reconciliation,
 )
 from app.services.billing_trend import calculate_daily_grid_deltas
+from app.services.meralco_email import (
+    email_bill_history,
+    gmail_import_status,
+    sync_meralco_email_async,
+)
 
 router = APIRouter()
 solis_service = SolisService()
@@ -119,6 +124,21 @@ def billing_profile():
     if profile is None:
         raise HTTPException(status_code=404, detail="No Meralco bill uploaded yet")
     return profile
+
+
+@router.get("/email-import/status")
+def email_import_status():
+    return gmail_import_status()
+
+
+@router.get("/email-import/history")
+def email_import_history():
+    return {"bills": email_bill_history()}
+
+
+@router.post("/email-import/refresh")
+async def refresh_email_import():
+    return await sync_meralco_email_async()
 
 
 @router.post("/savings/activate")

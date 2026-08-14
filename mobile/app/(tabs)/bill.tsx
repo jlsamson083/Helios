@@ -54,6 +54,19 @@ type DataQuality = {
   sampleDays: number;
 };
 
+type GmailImportStatus = {
+  status: 'connected' | 'error' | 'not_checked' | 'not_connected';
+  bills_found: number;
+  last_checked_at?: string;
+  last_error?: string | null;
+  latest_bill?: {
+    billing_period: string;
+    consumption_kwh: number;
+    amount_due_php: number;
+    due_date: string;
+  } | null;
+};
+
 const peso = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -90,6 +103,33 @@ export default function BillScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
+  const [gmailImport, setGmailImport] = useState<GmailImportStatus | null>(null);
+  const [checkingGmail, setCheckingGmail] = useState(false);
+
+  const loadGmailImport = useCallback(async (refresh = false) => {
+    try {
+      setCheckingGmail(refresh);
+      const base = HELIOS_API_BASE.replace('/energy', '');
+      const response = await fetch(
+        `${base}/billing/email-import/${refresh ? 'refresh' : 'status'}`,
+        { method: refresh ? 'POST' : 'GET', headers: HELIOS_API_HEADERS },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail ?? 'Unable to check Gmail');
+      if (refresh) {
+        const statusResponse = await fetch(`${base}/billing/email-import/status`, {
+          headers: HELIOS_API_HEADERS,
+        });
+        setGmailImport(await statusResponse.json());
+      } else {
+        setGmailImport(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to check Gmail');
+    } finally {
+      setCheckingGmail(false);
+    }
+  }, []);
 
   const loadGridImport = useCallback(async (useSolisImport = true) => {
     try {
@@ -147,6 +187,10 @@ export default function BillScreen() {
     );
     return () => clearInterval(interval);
   }, [loadGridImport]);
+
+  useEffect(() => {
+    loadGmailImport(false);
+  }, [loadGmailImport]);
 
   useEffect(() => {
     const loadBillingProfile = async () => {
@@ -362,6 +406,39 @@ export default function BillScreen() {
           </Text>
         </View>
       )}
+
+      <View style={styles.gmailCard}>
+        <View style={styles.qualityHeader}>
+          <Text style={styles.qualityTitle}>Meralco Gmail import</Text>
+          <Text style={[
+            styles.qualityBadge,
+            gmailImport?.status === 'connected' ? styles.qualityFresh : styles.qualityDelayed,
+          ]}>
+            {gmailImport?.status === 'connected' ? 'CONNECTED' : 'NOT CHECKED'}
+          </Text>
+        </View>
+        <Text style={styles.body}>
+          {gmailImport?.bills_found ?? 0} official bill email{gmailImport?.bills_found === 1 ? '' : 's'} stored
+        </Text>
+        {gmailImport?.latest_bill ? (
+          <Text style={styles.hint}>
+            Latest: {gmailImport.latest_bill.billing_period} · {gmailImport.latest_bill.consumption_kwh.toFixed(0)} kWh · {peso.format(gmailImport.latest_bill.amount_due_php)}
+          </Text>
+        ) : (
+          <Text style={styles.hint}>Check Gmail to import the forwarded Meralco bill history.</Text>
+        )}
+        <Text style={styles.hint}>
+          Email summaries are stored as official history. Detailed meter readings, rates, and net-metering credits still require the bill PDF because Meralco does not include them in the email.
+        </Text>
+        <Pressable
+          style={styles.gmailButton}
+          disabled={checkingGmail}
+          onPress={() => loadGmailImport(true)}>
+          <Text style={styles.gmailButtonText}>
+            {checkingGmail ? 'Checking Gmail…' : 'Check Gmail now'}
+          </Text>
+        </Pressable>
+      </View>
 
       <View style={styles.heroCard}>
         <Text style={styles.eyebrow}>PROJECTED BILL</Text>
@@ -604,6 +681,9 @@ const styles = StyleSheet.create({
   qualityFresh: { color: '#8FDDBA', backgroundColor: '#123126' },
   qualityDelayed: { color: '#FFD37A', backgroundColor: '#352A12' },
   qualityStale: { color: '#FF9A9A', backgroundColor: '#35191D' },
+  gmailCard: { backgroundColor: '#0D1820', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27414F', gap: 9 },
+  gmailButton: { alignItems: 'center', backgroundColor: '#274B5D', padding: 11, borderRadius: 10, marginTop: 2 },
+  gmailButtonText: { color: '#EAF5FA', fontWeight: '700' },
   heroCard: { backgroundColor: '#0D1820', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#20303A' },
   eyebrow: { color: '#FDB813', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   heroValue: { color: '#F5F7F8', fontSize: 42, fontWeight: '800', marginTop: 8 },

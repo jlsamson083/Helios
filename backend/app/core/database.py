@@ -117,6 +117,33 @@ def initialize_database() -> None:
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS meralco_email_bills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_key TEXT NOT NULL UNIQUE,
+                billing_period TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                consumption_kwh REAL NOT NULL,
+                amount_due_php REAL NOT NULL,
+                due_date TEXT NOT NULL,
+                received_at TEXT,
+                imported_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gmail_import_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                status TEXT NOT NULL,
+                last_checked_at TEXT NOT NULL,
+                last_error TEXT,
+                bills_found INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS alert_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 kind TEXT NOT NULL,
