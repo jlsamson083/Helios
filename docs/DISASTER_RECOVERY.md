@@ -84,3 +84,13 @@ return HTTP 401. An authenticated energy response must include
 
 Finally, check **Billing & Cost Management → Cost Analysis**. Expected actual
 cost is `$0.00`.
+
+## Reboot behavior
+
+`helios.service` and Caddy are enabled and use `Restart=on-failure`. The cloud
+backup and security-update timers are also enabled and persistent. A production
+reboot drill completed successfully on 2026-08-14 without the Mac: SSH, the API,
+HTTPS, and both timers returned automatically. The first Solis request can make
+API startup take roughly one minute, during which Caddy may temporarily return
+HTTP 502; wait for `/api/v1/health` to return HTTP 200 before diagnosing a
+failure.

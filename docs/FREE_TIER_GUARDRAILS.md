@@ -65,3 +65,31 @@ Current recovery protection:
 - Private Object Storage bucket: `helios-backups`; the VM keeps only the newest
   30 encrypted daily objects. Do not enable object versioning or remove the
   retention limit.
+
+## Independent uptime monitoring
+
+The Always Free APM domain `HeliosAlwaysFree` runs the REST monitor
+`HeliosHealth` from Oracle's Singapore vantage point every six minutes. It
+requires HTTPS status 200 and the response fragment `"status":"healthy"` from
+`/api/v1/health`. One vantage point at this frequency uses 10 monitor runs per
+hour.
+
+The enabled critical alarm `Helios application unavailable` fires when the
+monitor's mean availability is below 1 for one minute. It publishes to the
+`Helios-Uptime-Alerts` Notifications topic. Repeat notifications are disabled;
+each email subscription must be confirmed by its recipient before it becomes
+active.
+
+## VM security maintenance
+
+Oracle Linux installs security-only updates through the enabled
+`dnf-automatic-install.timer`. The production SSH policy is versioned in
+`scripts/helios-sshd-hardening.conf`: only the `opc` account may connect,
+public-key authentication remains enabled, password and root login are
+disabled, authentication attempts are limited to three, and X11 forwarding is
+disabled.
+
+The reboot recovery drill on 2026-08-14 confirmed that `helios`, `caddy`, the
+cloud-backup timer, and the security-update timer return automatically without
+the Mac. Helios can briefly return HTTP 502 while its initial Solis request
+finishes; the public health endpoint recovered without intervention.
