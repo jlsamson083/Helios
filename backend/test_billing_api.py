@@ -101,8 +101,8 @@ class BillingApiTests(unittest.TestCase):
                 return_value=profile,
             ),
             patch(
-                "app.routers.billing._grid_totals",
-                new=AsyncMock(return_value=(902.5, 451.25)),
+                "app.routers.billing._latest_recorded_grid_totals",
+                return_value=(902.5, 451.25),
             ),
             patch(
                 "app.routers.billing._cycle_data_quality",

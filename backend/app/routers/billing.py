@@ -41,6 +41,28 @@ async def _grid_totals():
     )
 
 
+def _latest_recorded_grid_totals() -> tuple[float, float]:
+    """Return the counters persisted by the background Solis recorder."""
+    connection = get_connection()
+    try:
+        row = connection.execute(
+            """
+            SELECT grid_import_total_kwh, grid_export_total_kwh
+            FROM solis_grid_counters
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        connection.close()
+    if row is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Waiting for the background Solis measurement",
+        )
+    return float(row[0]), float(row[1])
+
+
 def _cycle_data_quality(baseline_at: str, *, now: Optional[datetime] = None) -> dict:
     """Describe the measured data behind the current-cycle estimate."""
     connection = get_connection()
@@ -262,7 +284,7 @@ async def current_cycle():
     profile = get_billing_profile()
     if profile is None or profile.get("baseline_grid_import_kwh") is None:
         raise HTTPException(status_code=404, detail="Upload a bill to start a cycle")
-    imported, exported = await _grid_totals()
+    imported, exported = _latest_recorded_grid_totals()
     period_end = date.fromisoformat(profile["period_end"])
     next_reading = date.fromisoformat(profile["next_meter_reading_date"])
     today = datetime.now(ZoneInfo("Asia/Manila")).date()
