@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app.core.auth import require_api_key
+from app.core.auth import require_api_key, require_owner
 from app.core.settings import settings
 from app.core.logger import logger
 from app.routers.health import router as health_router
@@ -11,6 +11,7 @@ from app.routers.alerts import router as alerts_router
 from app.routers.auth import router as auth_router
 from app.routers.cost import router as cost_router
 from app.routers.backup import router as backup_router
+from app.routers.finance import router as finance_router
 
 from app.core.database import initialize_database
 from app.services.grid_counter_recorder import record_grid_counters
@@ -69,6 +70,13 @@ app.include_router(
     prefix="/api/v1/backup",
     tags=["Cloud backup"],
     dependencies=[Depends(require_api_key)],
+)
+
+app.include_router(
+    finance_router,
+    prefix="/api/v1/finance",
+    tags=["Finance"],
+    dependencies=[Depends(require_owner)],
 )
 
 @app.get("/", dependencies=[Depends(require_api_key)])

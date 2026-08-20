@@ -177,10 +177,19 @@ def initialize_database() -> None:
                 credential_id TEXT PRIMARY KEY,
                 public_key BLOB NOT NULL,
                 sign_count INTEGER NOT NULL,
+                username TEXT,
                 created_at TEXT NOT NULL
             )
             """
         )
+        passkey_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(passkey_credentials)")
+        }
+        if "username" not in passkey_columns:
+            connection.execute(
+                "ALTER TABLE passkey_credentials ADD COLUMN username TEXT"
+            )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS user_accounts (
@@ -188,6 +197,27 @@ def initialize_database() -> None:
                 password_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS finance_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_date TEXT NOT NULL,
+                direction TEXT NOT NULL CHECK (direction IN ('income', 'expense')),
+                description TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount_php REAL NOT NULL CHECK (amount_php >= 0),
+                source TEXT NOT NULL,
+                source_key TEXT UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_finance_entries_date
+            ON finance_entries(transaction_date DESC)
             """
         )
         connection.execute(

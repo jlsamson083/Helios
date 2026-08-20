@@ -5,6 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.core.settings import settings
+from app.core.auth import create_session_token
 from app.core.database import get_connection
 from app.main import app
 
@@ -72,6 +73,16 @@ class AccountAuthTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
 
+    def test_login_session_preserves_account_identity(self) -> None:
+        with self.settings:
+            token = create_session_token("TestUser")
+            response = self.client.get(
+                "/api/v1/auth/me",
+                cookies={"helios_session": token},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"username": "TestUser", "role": "member"})
+
     def test_passkey_enrollment_requires_session(self) -> None:
         with self.settings:
             response = self.client.post(
@@ -83,10 +94,13 @@ class AccountAuthTests(unittest.TestCase):
         with self.settings:
             response = self.client.post(
                 "/api/v1/auth/passkey/register/options",
-                cookies={"helios_session": "session-secret"},
+                cookies={
+                    "helios_session": create_session_token("TestUser")
+                },
             )
         self.assertEqual(response.status_code, 200)
         options = response.json()["options"]
+        self.assertEqual(options["user"]["name"], "TestUser")
         self.assertEqual(
             options["authenticatorSelection"]["userVerification"],
             "required",

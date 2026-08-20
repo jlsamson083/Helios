@@ -4,15 +4,21 @@ import hashlib
 import html
 import imaplib
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from email import policy
 from email.message import Message
 from email.utils import parsedate_to_datetime
 from typing import Iterable, Optional
+from zoneinfo import ZoneInfo
 
 from app.core.database import get_connection
 from app.core.logger import logger
 from app.core.settings import settings
+from app.services.meralco_bill import (
+    get_billing_profile,
+    parse_meralco_pdf,
+    save_billing_profile,
+)
 
 
 def _message_text(message: Message) -> str:
@@ -43,6 +49,69 @@ def _nested_messages(message: Message) -> Iterable[Message]:
                     yield nested
     if not yielded:
         yield message
+
+
+def _pdf_attachments(message: Message) -> Iterable[bytes]:
+    for part in message.walk():
+        filename = str(part.get_filename() or "").lower()
+        if part.get_content_type() != "application/pdf" and not filename.endswith(".pdf"):
+            continue
+        payload = part.get_payload(decode=True)
+        if payload:
+            yield payload
+
+
+def _solis_baseline_for_bill(period_end: str) -> Optional[dict]:
+    """Use the stored counter nearest the end of the Meralco reading day."""
+    reading_day = date.fromisoformat(period_end)
+    target = datetime.combine(
+        reading_day + timedelta(days=1),
+        time.min,
+        tzinfo=ZoneInfo("Asia/Manila"),
+    ).astimezone(timezone.utc)
+    connection = get_connection()
+    try:
+        row = connection.execute(
+            """
+            SELECT timestamp, grid_import_total_kwh, grid_export_total_kwh
+            FROM solis_grid_counters
+            ORDER BY ABS(strftime('%s', timestamp) - ?) ASC
+            LIMIT 1
+            """,
+            (int(target.timestamp()),),
+        ).fetchone()
+    finally:
+        connection.close()
+    if row is None:
+        return None
+    measured_at = datetime.fromisoformat(row["timestamp"])
+    if measured_at.tzinfo is None:
+        measured_at = measured_at.replace(tzinfo=timezone.utc)
+    if abs((measured_at - target).total_seconds()) > 36 * 60 * 60:
+        return None
+    return {
+        "baseline_grid_import_kwh": float(row["grid_import_total_kwh"]),
+        "baseline_grid_export_kwh": float(row["grid_export_total_kwh"]),
+        "baseline_at": measured_at.isoformat(),
+    }
+
+
+def _update_profile_from_pdfs(profiles: Iterable[dict]) -> bool:
+    candidates = sorted(profiles, key=lambda item: item["period_end"], reverse=True)
+    if not candidates:
+        return False
+    latest = candidates[0]
+    current = get_billing_profile()
+    if current and current["period_end"] >= latest["period_end"]:
+        return False
+    baseline = _solis_baseline_for_bill(latest["period_end"])
+    if baseline is None:
+        logger.warning(
+            f'No stored Solis counter is close enough to Meralco period end {latest["period_end"]}'
+        )
+        return False
+    save_billing_profile({**latest, **baseline})
+    return True
 
 
 def parse_meralco_email(message: Message) -> Optional[dict]:
@@ -144,6 +213,7 @@ def sync_meralco_email() -> dict:
         if status != "OK":
             raise RuntimeError("Unable to search the Helios Gmail inbox")
         bills = []
+        pdf_profiles = []
         for identifier in matches[0].split():
             status, payload = client.fetch(identifier, "(RFC822)")
             if status != "OK" or not payload or not isinstance(payload[0], tuple):
@@ -153,9 +223,20 @@ def sync_meralco_email() -> dict:
                 parsed = parse_meralco_email(candidate)
                 if parsed:
                     bills.append(parsed)
+                    for content in _pdf_attachments(candidate):
+                        try:
+                            pdf_profiles.append(parse_meralco_pdf(content))
+                        except Exception as exc:
+                            logger.warning(f"Unable to parse attached Meralco PDF: {exc}")
         imported = _save_bills(bills)
+        profile_updated = _update_profile_from_pdfs(pdf_profiles)
         _save_state("connected")
-        return {"status": "connected", "imported": imported, "matched": len(bills)}
+        return {
+            "status": "connected",
+            "imported": imported,
+            "matched": len(bills),
+            "profile_updated": profile_updated,
+        }
     except Exception as exc:
         logger.warning(f"Unable to import Meralco Gmail bills: {exc}")
         _save_state("error", error=str(exc))

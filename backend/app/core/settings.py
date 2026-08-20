@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     HELIOS_API_KEY: str = ""
     HELIOS_PASSCODE_HASH: str = ""
     HELIOS_SESSION_SECRET: str = ""
+    HELIOS_OWNER_USERNAME: str = "Eros"
     WEBAUTHN_RP_ID: str = "168-107-79-27.sslip.io"
     WEBAUTHN_ORIGIN: str = "https://168-107-79-27.sslip.io"
 

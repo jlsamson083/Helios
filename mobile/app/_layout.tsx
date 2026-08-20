@@ -27,7 +27,7 @@ export default function RootLayout() {
         controller.abort();
         setAuthenticated(false);
       }, 5000);
-      fetch(`${HELIOS_API_BASE.replace(/\/energy$/, '')}/alerts`, {
+      fetch(`${HELIOS_API_BASE.replace(/\/energy$/, '')}/auth/me`, {
         cache: 'no-store',
         credentials: 'include',
         signal: controller.signal,
@@ -46,6 +46,7 @@ export default function RootLayout() {
     const response = await fetch(`${HELIOS_API_BASE.replace(/\/energy$/, '')}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ username: username.trim(), password }),
     });
     if (!response.ok) {

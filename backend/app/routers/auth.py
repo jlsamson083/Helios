@@ -3,8 +3,9 @@ import json
 import secrets
 from datetime import datetime, timezone
 from hmac import compare_digest
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel
 from webauthn import (
     generate_authentication_options,
@@ -21,7 +22,11 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from app.core.auth import require_api_key
+from app.core.auth import (
+    authenticated_username,
+    create_session_token,
+    require_authenticated_username,
+)
 from app.core.database import get_connection
 from app.core.settings import settings
 
@@ -41,9 +46,9 @@ class CredentialResponse(BaseModel):
     credential: dict
 
 
-def _set_session(response: Response) -> None:
+def _set_session(response: Response, username: str) -> None:
     response.set_cookie(
-        "helios_session", settings.HELIOS_SESSION_SECRET,
+        "helios_session", create_session_token(username),
         max_age=31_536_000, secure=True, httponly=True,
         samesite="strict", path="/",
     )
@@ -65,7 +70,7 @@ def login(credentials: LoginRequest, response: Response):
     connection = get_connection()
     try:
         account = connection.execute(
-            "SELECT password_hash FROM user_accounts WHERE username = ?",
+            "SELECT username, password_hash FROM user_accounts WHERE username = ?",
             (credentials.username.strip(),),
         ).fetchone()
     finally:
@@ -75,7 +80,25 @@ def login(credentials: LoginRequest, response: Response):
     )
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    _set_session(response)
+    _set_session(response, account["username"])
+
+
+@router.get("/me")
+def me(
+    x_helios_key: Optional[str] = Header(default=None),
+    helios_session: Optional[str] = Cookie(default=None),
+):
+    username = authenticated_username(x_helios_key, helios_session)
+    if username is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return {
+        "username": username,
+        "role": (
+            "owner"
+            if username.casefold() == settings.HELIOS_OWNER_USERNAME.casefold()
+            else "member"
+        ),
+    }
 
 
 @router.post("/logout", status_code=204)
@@ -85,14 +108,16 @@ def logout(response: Response):
     )
 
 
-@router.post("/passkey/register/options", dependencies=[Depends(require_api_key)])
-def passkey_registration_options():
+@router.post("/passkey/register/options")
+def passkey_registration_options(
+    username: str = Depends(require_authenticated_username),
+):
     options = generate_registration_options(
         rp_id=settings.WEBAUTHN_RP_ID,
         rp_name="Helios Home Energy",
-        user_id=b"helios-family",
-        user_name="helios",
-        user_display_name="Helios Family",
+        user_id=hashlib.sha256(username.casefold().encode()).digest(),
+        user_name=username,
+        user_display_name=username,
         authenticator_selection=AuthenticatorSelectionCriteria(
             authenticator_attachment=AuthenticatorAttachment.PLATFORM,
             resident_key=ResidentKeyRequirement.REQUIRED,
@@ -100,16 +125,21 @@ def passkey_registration_options():
         ),
     )
     token = secrets.token_urlsafe(24)
-    registration_challenges[token] = options.challenge
+    registration_challenges[token] = (options.challenge, username)
     return {"challenge_token": token, "options": json.loads(options_to_json(options))}
 
 
-@router.post("/passkey/register/verify", status_code=204,
-             dependencies=[Depends(require_api_key)])
-def verify_passkey_registration(body: CredentialResponse):
-    challenge = registration_challenges.pop(body.challenge_token, None)
-    if challenge is None:
+@router.post("/passkey/register/verify", status_code=204)
+def verify_passkey_registration(
+    body: CredentialResponse,
+    active_username: str = Depends(require_authenticated_username),
+):
+    registration = registration_challenges.pop(body.challenge_token, None)
+    if registration is None:
         raise HTTPException(status_code=400, detail="Registration challenge expired")
+    challenge, username = registration
+    if username.casefold() != active_username.casefold():
+        raise HTTPException(status_code=403, detail="Account changed during enrollment")
     try:
         verified = verify_registration_response(
             credential=body.credential,
@@ -124,10 +154,10 @@ def verify_passkey_registration(body: CredentialResponse):
     try:
         connection.execute(
             """INSERT OR REPLACE INTO passkey_credentials
-               (credential_id, public_key, sign_count, created_at)
-               VALUES (?, ?, ?, ?)""",
+               (credential_id, public_key, sign_count, username, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
             (body.credential["id"], verified.credential_public_key,
-             verified.sign_count, datetime.now(timezone.utc).isoformat()),
+             verified.sign_count, username, datetime.now(timezone.utc).isoformat()),
         )
         connection.commit()
     finally:
@@ -185,4 +215,4 @@ def verify_passkey_authentication(body: CredentialResponse, response: Response):
         connection.commit()
     finally:
         connection.close()
-    _set_session(response)
+    _set_session(response, row["username"] or "Passkey user")
